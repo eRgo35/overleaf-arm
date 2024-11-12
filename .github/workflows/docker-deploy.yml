@@ -6,7 +6,7 @@ on:
 
 jobs:
 
-    build-overleaf-base-arm:
+    build-overleaf-arm:
         runs-on: ubuntu-latest
         steps:
         - uses: actions/checkout@v4
