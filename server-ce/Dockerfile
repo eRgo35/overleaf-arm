@@ -1,5 +1,6 @@
 # ---------------------------------------------
 # Overleaf Community Edition (overleaf/overleaf)
+# sudo docker buildx build --platform linux/arm64 --file server-ce/Dockerfile --tag ghcr.io/tgmstudios/overleaf-arm:latest --push  .
 # ---------------------------------------------
 
 ARG OVERLEAF_BASE_TAG=ghcr.io/tgmstudios/overleaf-arm-base:latest

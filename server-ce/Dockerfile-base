@@ -1,5 +1,6 @@
 # --------------------------------------------------
 # Overleaf Base Image (sharelatex/sharelatex-base)
+# sudo docker buildx build --platform linux/arm64 --file server-ce/Dockerfile --tag ghcr.io/tgmstudios/overleaf-arm-base:latest --push  .
 # --------------------------------------------------
 
 FROM phusion/baseimage:jammy-1.0.4
