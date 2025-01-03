@@ -31,7 +31,12 @@ process.on('unhandledRejection', e => {
 
 // store settings for multiple backends, so that we can test each one.
 // fs will always be available - add others if they are configured
-const { BackendSettings, s3Config, s3SSECConfig } = require('./TestConfig')
+const {
+  BackendSettings,
+  s3Config,
+  s3SSECConfig,
+  AWS_S3_USER_FILES_STORAGE_CLASS,
+} = require('./TestConfig')
 const {
   AlreadyWrittenError,
   NotFoundError,
@@ -44,6 +49,8 @@ const {
 } = require('@overleaf/object-persistor/src/PerProjectEncryptedS3Persistor')
 const { S3Persistor } = require('@overleaf/object-persistor/src/S3Persistor')
 const crypto = require('node:crypto')
+const { WritableBuffer } = require('@overleaf/stream-utils')
+const { gzipSync } = require('node:zlib')
 
 describe('Filestore', function () {
   this.timeout(1000 * 10)
@@ -1255,6 +1262,7 @@ describe('Filestore', function () {
           })
         })
 
+        /** @type {import('aws-sdk/clients/s3')} */
         let s3Client
         before('create s3 client', function () {
           s3Client = new S3Persistor(s3Config())._getClientForBucket('')
@@ -1354,6 +1362,25 @@ describe('Filestore', function () {
         })
       })
 
+      describe('getObjectSize', function () {
+        it('should return a number', async function () {
+          const buf = Buffer.from('hello')
+          const fileId = new ObjectId().toString()
+          const fileUrl = `${filestoreUrl}/project/${projectId}/file/${fileId}`
+          const res = await fetch(fileUrl, {
+            method: 'POST',
+            body: Stream.Readable.from([buf]),
+          })
+          if (!res.ok) throw new Error(res.statusText)
+          expect(
+            await app.persistor.getObjectSize(
+              Settings.filestore.stores.user_files,
+              `${projectId}/${fileId}`
+            )
+          ).to.equal(buf.byteLength)
+        })
+      })
+
       describe('checkIfObjectExists', function () {
         it('should return false when the object does not exist', async function () {
           expect(
@@ -1378,6 +1405,131 @@ describe('Filestore', function () {
             )
           ).to.equal(true)
         })
+      })
+
+      if (backendSettings.backend === 's3SSEC') {
+        describe('storageClass', function () {
+          it('should use the default storage class for dek', async function () {
+            const key = `${projectId}/${new ObjectId()}`
+            const dekBucket = process.env.AWS_S3_USER_FILES_DEK_BUCKET_NAME
+            await app.persistor.sendStream(
+              dekBucket,
+              key,
+              Stream.Readable.from(['hello'])
+            )
+            expect(
+              await app.persistor.getObjectStorageClass(dekBucket, key)
+            ).to.equal(undefined)
+          })
+
+          it('should use the custom storage class for user files', async function () {
+            const key = `${projectId}/${new ObjectId()}`
+            await app.persistor.sendStream(
+              Settings.filestore.stores.user_files,
+              key,
+              Stream.Readable.from(['hello'])
+            )
+            const sc = AWS_S3_USER_FILES_STORAGE_CLASS
+            expect(sc).to.exist
+            expect(
+              await app.persistor.getObjectStorageClass(
+                Settings.filestore.stores.user_files,
+                key
+              )
+            ).to.equal(sc)
+          })
+        })
+      }
+
+      describe('autoGunzip', function () {
+        let key
+        beforeEach('new key', function () {
+          key = `${projectId}/${new ObjectId().toString()}`
+        })
+        this.timeout(60 * 1000)
+        const body = Buffer.alloc(10 * 1024 * 1024, 'hello')
+        const gzippedBody = gzipSync(body)
+
+        /**
+         * @param {string} key
+         * @param {Buffer} wantBody
+         * @param {boolean} autoGunzip
+         * @return {Promise<void>}
+         */
+        async function checkBodyIsTheSame(key, wantBody, autoGunzip) {
+          const s = await app.persistor.getObjectStream(
+            Settings.filestore.stores.user_files,
+            key,
+            { autoGunzip }
+          )
+          const buf = new WritableBuffer()
+          await Stream.promises.pipeline(s, buf)
+          expect(buf.getContents()).to.deep.equal(wantBody)
+        }
+
+        if (backendSettings.backend === 'fs') {
+          it('should refuse to handle autoGunzip', async function () {
+            await expect(
+              app.persistor.getObjectStream(
+                Settings.filestore.stores.user_files,
+                key,
+                { autoGunzip: true }
+              )
+            ).to.be.rejectedWith(NotImplementedError)
+          })
+        } else {
+          it('should return the raw body with gzip', async function () {
+            await app.persistor.sendStream(
+              Settings.filestore.stores.user_files,
+              key,
+              Stream.Readable.from([gzippedBody]),
+              { contentEncoding: 'gzip' }
+            )
+            expect(
+              await app.persistor.getObjectSize(
+                Settings.filestore.stores.user_files,
+                key
+              )
+            ).to.equal(gzippedBody.byteLength)
+            // raw body with autoGunzip=true
+            await checkBodyIsTheSame(key, body, true)
+            // gzip body without autoGunzip=false
+            await checkBodyIsTheSame(key, gzippedBody, false)
+          })
+          it('should return the raw body without gzip compression', async function () {
+            await app.persistor.sendStream(
+              Settings.filestore.stores.user_files,
+              key,
+              Stream.Readable.from([body])
+            )
+            expect(
+              await app.persistor.getObjectSize(
+                Settings.filestore.stores.user_files,
+                key
+              )
+            ).to.equal(body.byteLength)
+            // raw body with both autoGunzip options
+            await checkBodyIsTheSame(key, body, true)
+            await checkBodyIsTheSame(key, body, false)
+          })
+
+          it('should return the gzip body without gzip header', async function () {
+            await app.persistor.sendStream(
+              Settings.filestore.stores.user_files,
+              key,
+              Stream.Readable.from([gzippedBody])
+            )
+            expect(
+              await app.persistor.getObjectSize(
+                Settings.filestore.stores.user_files,
+                key
+              )
+            ).to.equal(gzippedBody.byteLength)
+            // gzip body with both autoGunzip options
+            await checkBodyIsTheSame(key, gzippedBody, true)
+            await checkBodyIsTheSame(key, gzippedBody, false)
+          })
+        }
       })
     })
   }

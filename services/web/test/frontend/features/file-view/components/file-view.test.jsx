@@ -18,6 +18,7 @@ describe('<FileView/>', function () {
       source_entity_path: '/source-entity-path.ext',
       provider: 'project_file',
     },
+    hash: '012345678901234567890123',
     created: new Date(2021, 1, 17, 3, 24).toISOString(),
   }
 
@@ -36,12 +37,12 @@ describe('<FileView/>', function () {
 
   describe('for a text file', function () {
     it('shows a loading indicator while the file is loading', async function () {
-      fetchMock.head('express:/project/:project_id/file/:file_id', {
+      fetchMock.head('express:/project/:project_id/blob/:hash', {
         status: 201,
         headers: { 'Content-Length': 10000 },
       })
       fetchMock.get(
-        'express:/project/:project_id/file/:file_id',
+        'express:/project/:project_id/blob/:hash',
         'Text file content'
       )
 

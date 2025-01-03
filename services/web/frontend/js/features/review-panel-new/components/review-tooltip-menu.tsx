@@ -1,4 +1,5 @@
 import {
+  CSSProperties,
   Dispatch,
   FC,
   SetStateAction,
@@ -30,6 +31,12 @@ import {
 import { isInsertOperation } from '@/utils/operations'
 import { isCursorNearViewportEdge } from '@/features/source-editor/utils/is-cursor-near-edge'
 import OLTooltip from '@/features/ui/components/ol/ol-tooltip'
+import { useModalsContext } from '@/features/ide-react/context/modals-context'
+import { numberOfChangesInSelection } from '../utils/changes-in-selection'
+import { useEditorManagerContext } from '@/features/ide-react/context/editor-manager-context'
+
+const TRACK_CHANGES_ON_WIDGET_HEIGHT = 25
+const CM_LINE_RIGHT_PADDING = 2
 
 const ReviewTooltipMenu: FC = () => {
   const state = useCodeMirrorStateContext()
@@ -68,10 +75,13 @@ const ReviewTooltipMenuContent: FC<{
   const { t } = useTranslation()
   const view = useCodeMirrorViewContext()
   const state = useCodeMirrorStateContext()
-  const { setReviewPanelOpen } = useLayoutContext()
+  const { setReviewPanelOpen, reviewPanelOpen } = useLayoutContext()
   const { setView } = useReviewPanelViewActionsContext()
   const ranges = useRangesContext()
   const { acceptChanges, rejectChanges } = useRangesActionsContext()
+  const { showGenericConfirmModal } = useModalsContext()
+  const { wantTrackChanges } = useEditorManagerContext()
+  const [tooltipStyle, setTooltipStyle] = useState<CSSProperties | undefined>()
 
   const addComment = useCallback(() => {
     setReviewPanelOpen(true)
@@ -109,17 +119,85 @@ const ReviewTooltipMenuContent: FC<{
   }, [ranges, state.selection.main])
 
   const acceptChangesHandler = useCallback(() => {
-    acceptChanges(...changeIdsInSelection)
-  }, [acceptChanges, changeIdsInSelection])
+    const nChanges = numberOfChangesInSelection(ranges, state.selection.main)
+    showGenericConfirmModal({
+      message: t('confirm_accept_selected_changes', { count: nChanges }),
+      title: t('accept_selected_changes'),
+      onConfirm: () => {
+        acceptChanges(...changeIdsInSelection)
+      },
+      primaryVariant: 'danger',
+    })
+  }, [
+    acceptChanges,
+    changeIdsInSelection,
+    ranges,
+    showGenericConfirmModal,
+    state.selection.main,
+    t,
+  ])
 
   const rejectChangesHandler = useCallback(() => {
-    rejectChanges(...changeIdsInSelection)
-  }, [rejectChanges, changeIdsInSelection])
+    const nChanges = numberOfChangesInSelection(ranges, state.selection.main)
+    showGenericConfirmModal({
+      message: t('confirm_reject_selected_changes', { count: nChanges }),
+      title: t('reject_selected_changes'),
+      onConfirm: () => {
+        rejectChanges(...changeIdsInSelection)
+      },
+      primaryVariant: 'danger',
+    })
+  }, [
+    showGenericConfirmModal,
+    t,
+    ranges,
+    state.selection.main,
+    rejectChanges,
+    changeIdsInSelection,
+  ])
 
   const showChangesButtons = changeIdsInSelection.length > 0
 
+  useEffect(() => {
+    view.requestMeasure({
+      key: 'review-tooltip-outside-viewport',
+      read(view) {
+        const cursorCoords = view.coordsAtPos(view.state.selection.main.head)
+
+        if (!cursorCoords) {
+          return
+        }
+
+        const scrollDomRect = view.scrollDOM.getBoundingClientRect()
+        const contentDomRect = view.contentDOM.getBoundingClientRect()
+        const editorRightPos = contentDomRect.right - CM_LINE_RIGHT_PADDING
+
+        if (
+          cursorCoords.top > scrollDomRect.top &&
+          cursorCoords.top < scrollDomRect.bottom
+        ) {
+          return
+        }
+
+        const widgetOffset =
+          wantTrackChanges && !reviewPanelOpen
+            ? TRACK_CHANGES_ON_WIDGET_HEIGHT
+            : 0
+
+        return {
+          position: 'fixed' as const,
+          top: scrollDomRect.top + widgetOffset,
+          right: window.innerWidth - editorRightPos,
+        }
+      },
+      write(res) {
+        setTooltipStyle(res)
+      },
+    })
+  }, [view, reviewPanelOpen, wantTrackChanges])
+
   return (
-    <div className="review-tooltip-menu">
+    <div className="review-tooltip-menu" style={tooltipStyle}>
       <button
         className="review-tooltip-menu-button review-tooltip-add-comment-button"
         onClick={addComment}
@@ -130,7 +208,10 @@ const ReviewTooltipMenuContent: FC<{
       {showChangesButtons && (
         <>
           <div className="review-tooltip-menu-divider" />
-          <OLTooltip id="accept-all-changes" description={t('accept_all')}>
+          <OLTooltip
+            id="accept-all-changes"
+            description={t('accept_selected_changes')}
+          >
             <button
               className="review-tooltip-menu-button"
               onClick={acceptChangesHandler}
@@ -139,7 +220,10 @@ const ReviewTooltipMenuContent: FC<{
             </button>
           </OLTooltip>
 
-          <OLTooltip id="reject-all-changes" description={t('reject_all')}>
+          <OLTooltip
+            id="reject-all-changes"
+            description={t('reject_selected_changes')}
+          >
             <button
               className="review-tooltip-menu-button"
               onClick={rejectChangesHandler}

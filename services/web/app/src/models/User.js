@@ -128,6 +128,7 @@ const UserSchema = new Schema(
       },
       mendeley: { type: Boolean, default: Settings.defaultFeatures.mendeley },
       zotero: { type: Boolean, default: Settings.defaultFeatures.zotero },
+      papers: { type: Boolean, default: Settings.defaultFeatures.papers },
       referencesSearch: {
         type: Boolean,
         default: Settings.defaultFeatures.referencesSearch,
@@ -136,9 +137,9 @@ const UserSchema = new Schema(
         type: Boolean,
         default: Settings.defaultFeatures.symbolPalette,
       },
-      // labs feature, which shouldnt have a default as we havent decided pricing model yet
       aiErrorAssistant: {
         type: Boolean,
+        default: false,
       },
     },
     featuresOverrides: [
@@ -163,6 +164,7 @@ const UserSchema = new Schema(
           templates: { type: Boolean },
           trackChanges: { type: Boolean },
           mendeley: { type: Boolean },
+          papers: { type: Boolean },
           zotero: { type: Boolean },
           referencesSearch: { type: Boolean },
           symbolPalette: { type: Boolean },
@@ -187,6 +189,7 @@ const UserSchema = new Schema(
       // The actual values are managed by third-party-references.
       mendeley: Schema.Types.Mixed,
       zotero: Schema.Types.Mixed,
+      papers: Schema.Types.Mixed,
     },
     writefull: {
       enabled: { type: Boolean, default: null },

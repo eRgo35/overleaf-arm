@@ -3,6 +3,7 @@ import { Trans, useTranslation } from 'react-i18next'
 
 import Icon from '../../../shared/components/icon'
 import { formatTime, relativeDate } from '../../utils/format-date'
+import { fileUrl } from '../../utils/fileUrl'
 import { useFileTreeData } from '@/shared/context/file-tree-data-context'
 import { useProjectContext } from '@/shared/context/project-context'
 
@@ -12,7 +13,6 @@ import { LinkedFileIcon } from './file-view-icons'
 import { BinaryFile, hasProvider, LinkedFile } from '../types/binary-file'
 import FileViewRefreshButton from './file-view-refresh-button'
 import FileViewRefreshError from './file-view-refresh-error'
-import { useSnapshotContext } from '@/features/ide-react/context/snapshot-context'
 import MaterialIcon from '@/shared/components/material-icon'
 import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
 import OLButton from '@/features/ui/components/ol/ol-button'
@@ -53,7 +53,6 @@ type FileViewHeaderProps = {
 export default function FileViewHeader({ file }: FileViewHeaderProps) {
   const { _id: projectId } = useProjectContext()
   const { fileTreeReadOnly } = useFileTreeData()
-  const { fileTreeFromHistory } = useSnapshotContext()
   const { t } = useTranslation()
 
   const [refreshError, setRefreshError] = useState<Nullable<string>>(null)
@@ -86,11 +85,7 @@ export default function FileViewHeader({ file }: FileViewHeaderProps) {
         <OLButton
           variant="secondary"
           download={file.name}
-          href={
-            fileTreeFromHistory
-              ? `/project/${projectId}/blob/${file.hash}`
-              : `/project/${projectId}/file/${file.id}`
-          }
+          href={fileUrl(projectId, file.id, file.hash)}
         >
           <BootstrapVersionSwitcher
             bs3={<Icon type="download" fw />}

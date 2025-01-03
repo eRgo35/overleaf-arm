@@ -24,6 +24,7 @@ import _ from 'lodash'
 import Async from 'async'
 import Errors from '../Errors/Errors.js'
 import { promisify } from '@overleaf/promise-utils'
+import HistoryURLHelper from '../History/HistoryURLHelper.js'
 
 let ReferencesHandler
 
@@ -33,15 +34,13 @@ if (!Features.hasFeature('references')) {
 
 export default ReferencesHandler = {
   _buildDocUrl(projectId, docId) {
-    return `${settings.apis.docstore.url}/project/${projectId}/doc/${docId}/raw`
+    return {
+      url: `${settings.apis.docstore.url}/project/${projectId}/doc/${docId}/raw`,
+    }
   },
 
-  _buildFileUrl(projectId, fileId) {
-    return `${settings.apis.filestore.url}/project/${projectId}/file/${fileId}`
-  },
-
-  _findBibFileIds(project) {
-    const ids = []
+  _findBibFileRefs(project) {
+    const fileRefs = []
     function _process(folder) {
       _.forEach(folder.fileRefs || [], function (file) {
         if (
@@ -49,13 +48,13 @@ export default ReferencesHandler = {
             x1.match(/^.*\.bib$/)
           )
         ) {
-          return ids.push(file._id)
+          return fileRefs.push(file)
         }
       })
       return _.forEach(folder.folders || [], folder => _process(folder))
     }
     _.forEach(project.rootFolder || [], rootFolder => _process(rootFolder))
-    return ids
+    return fileRefs
   },
 
   _findBibDocIds(project) {
@@ -103,7 +102,7 @@ export default ReferencesHandler = {
     }
     return ProjectGetter.getProject(
       projectId,
-      { rootFolder: true, owner_ref: 1 },
+      { rootFolder: true, owner_ref: 1, 'overleaf.history.id': 1 },
       function (err, project) {
         if (err) {
           OError.tag(err, 'error finding project', {
@@ -118,21 +117,27 @@ export default ReferencesHandler = {
         }
         logger.debug({ projectId }, 'indexing all bib files in project')
         const docIds = ReferencesHandler._findBibDocIds(project)
-        const fileIds = ReferencesHandler._findBibFileIds(project)
+        const fileRefs = ReferencesHandler._findBibFileRefs(project)
         return ReferencesHandler._doIndexOperation(
           projectId,
           project,
           docIds,
-          fileIds,
+          fileRefs,
           callback
         )
       }
     )
   },
 
-  _doIndexOperation(projectId, project, docIds, fileIds, callback) {
+  _doIndexOperation(projectId, project, docIds, fileRefs, callback) {
     if (!Features.hasFeature('references')) {
       return callback()
+    }
+    const historyId = project?.overleaf?.history?.id
+    if (!historyId) {
+      return callback(
+        new OError('project does not have a history id', { projectId })
+      )
     }
     return ReferencesHandler._isFullIndex(project, function (err, isFullIndex) {
       if (err) {
@@ -162,15 +167,22 @@ export default ReferencesHandler = {
           const bibDocUrls = docIds.map(docId =>
             ReferencesHandler._buildDocUrl(projectId, docId)
           )
-          const bibFileUrls = fileIds.map(fileId =>
-            ReferencesHandler._buildFileUrl(projectId, fileId)
+          const bibFileUrls = fileRefs.map(fileRef =>
+            HistoryURLHelper.projectHistoryURLWithFilestoreFallback(
+              settings,
+              projectId,
+              historyId,
+              fileRef,
+              'bibFileUrls'
+            )
           )
-          const allUrls = bibDocUrls.concat(bibFileUrls)
+          const sourceURLs = bibDocUrls.concat(bibFileUrls)
           return request.post(
             {
               url: `${settings.apis.references.url}/project/${projectId}/index`,
               json: {
-                docUrls: allUrls,
+                docUrls: sourceURLs.map(item => item.fallbackURL || item.url),
+                sourceURLs,
                 fullIndex: isFullIndex,
               },
             },

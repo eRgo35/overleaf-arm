@@ -4,6 +4,7 @@ import {
   EditorView,
   showTooltip,
   Tooltip,
+  TooltipView,
 } from '@codemirror/view'
 import {
   Extension,
@@ -11,18 +12,37 @@ import {
   StateEffect,
   Range,
   SelectionRange,
+  EditorState,
 } from '@codemirror/state'
 import { isSplitTestEnabled } from '@/utils/splitTestUtils'
 import { v4 as uuid } from 'uuid'
-import { isCursorNearViewportTop } from '../utils/is-cursor-near-edge'
 
 export const addNewCommentRangeEffect = StateEffect.define<Range<Decoration>>()
 
 export const removeNewCommentRangeEffect = StateEffect.define<Decoration>()
 
-export const textSelectedEffect = StateEffect.define<EditorView>()
+export const textSelectedEffect = StateEffect.define<null>()
 
 export const removeReviewPanelTooltipEffect = StateEffect.define()
+
+const mouseDownEffect = StateEffect.define()
+const mouseUpEffect = StateEffect.define()
+const mouseDownStateField = StateField.define<boolean>({
+  create() {
+    return false
+  },
+  update(value, tr) {
+    for (const effect of tr.effects) {
+      if (effect.is(mouseDownEffect)) {
+        return true
+      } else if (effect.is(mouseUpEffect)) {
+        return false
+      }
+    }
+
+    return value
+  },
+})
 
 export const buildAddNewCommentRangeEffect = (range: SelectionRange) => {
   return addNewCommentRangeEffect.of(
@@ -40,31 +60,29 @@ export const reviewTooltip = (): Extension => {
     return []
   }
 
+  let mouseUpListener: null | (() => void) = null
+  const disableMouseUpListener = () => {
+    if (mouseUpListener) {
+      document.removeEventListener('mouseup', mouseUpListener)
+    }
+  }
+
   return [
     reviewTooltipTheme,
     reviewTooltipStateField,
+    mouseDownStateField,
     EditorView.domEventHandlers({
-      mouseup(event, view) {
-        if (!view.state.selection.main.empty) {
-          view.dispatch({
-            effects: textSelectedEffect.of(view),
-          })
+      mousedown: (event, view) => {
+        disableMouseUpListener()
+        mouseUpListener = () => {
+          disableMouseUpListener()
+          view.dispatch({ effects: mouseUpEffect.of(null) })
         }
-      },
-      keyup(event, view) {
-        if (
-          (event.shiftKey || event.key === 'Meta') &&
-          !view.state.selection.main.empty
-        ) {
-          view.dispatch({
-            effects: textSelectedEffect.of(view),
-          })
-        }
-      },
-      mousedown(event, view) {
+
         view.dispatch({
-          effects: removeReviewPanelTooltipEffect.of(null),
+          effects: mouseDownEffect.of(null),
         })
+        document.addEventListener('mouseup', mouseUpListener)
       },
     }),
   ]
@@ -84,10 +102,6 @@ export const reviewTooltipStateField = StateField.define<{
     addCommentRanges = addCommentRanges.map(tr.changes)
 
     for (const effect of tr.effects) {
-      if (effect.is(removeReviewPanelTooltipEffect)) {
-        return { tooltip: null, addCommentRanges }
-      }
-
       if (effect.is(removeNewCommentRangeEffect)) {
         const rangeToRemove = effect.value
         addCommentRanges = addCommentRanges.update({
@@ -104,14 +118,13 @@ export const reviewTooltipStateField = StateField.define<{
           add: [rangeToAdd],
         })
       }
+    }
 
-      if (effect.is(textSelectedEffect)) {
-        tooltip = buildTooltip(effect.value)
-      }
-
-      if (tooltip && tr.state.selection.main.empty) {
-        tooltip = null
-      }
+    const isMouseDown = tr.state.field(mouseDownStateField)
+    if (!isMouseDown && !tr.state.selection.main.empty) {
+      tooltip = buildTooltip(tr.state)
+    } else if (tooltip && tr.state.selection.main.empty) {
+      tooltip = null
     }
 
     return { tooltip, addCommentRanges }
@@ -123,22 +136,33 @@ export const reviewTooltipStateField = StateField.define<{
   ],
 })
 
-function buildTooltip(view: EditorView): Tooltip | null {
-  if (view.state.selection.main.empty) {
-    return null
-  }
+function buildTooltip(state: EditorState): Tooltip | null {
+  const lineAtFrom = state.doc.lineAt(state.selection.main.from)
+  const lineAtTo = state.doc.lineAt(state.selection.main.to)
+  const multiLineSelection = lineAtFrom.number !== lineAtTo.number
+  const column = state.selection.main.head - lineAtTo.from
 
-  const pos = view.state.selection.main.head
+  // If the selection is a multi-line selection and the cursor is at the beginning of the next line
+  // we want to show the tooltip at the end of the previous line
+  const pos =
+    multiLineSelection && column === 0
+      ? state.selection.main.head - 1
+      : state.selection.main.head
+
   return {
     pos,
-    above: !isCursorNearViewportTop(view, pos, 50),
-    strictSide: true,
-    arrow: false,
-    create() {
-      const dom = document.createElement('div')
-      dom.className = 'review-tooltip-menu-container'
-      return { dom, overlap: true, offset: { x: 0, y: 8 } }
-    },
+    above: state.selection.main.head !== state.selection.main.to,
+    create: createReviewTooltipView,
+  }
+}
+
+const createReviewTooltipView = (): TooltipView => {
+  const dom = document.createElement('div')
+  dom.className = 'review-tooltip-menu-container'
+  return {
+    dom,
+    overlap: true,
+    offset: { x: 0, y: 8 },
   }
 }
 

@@ -1,24 +1,23 @@
 import { useTranslation } from 'react-i18next'
 import NavLinkItem from '@/features/ui/components/bootstrap-5/navbar/nav-link-item'
-import { sendMB } from '@/infrastructure/event-tracking'
+import { useSendProjectListMB } from '@/features/project-list/components/project-list-events'
 
 export default function LoggedOutItems({
   showSignUpLink,
-  currentUrl,
 }: {
   showSignUpLink: boolean
-  currentUrl: string
 }) {
   const { t } = useTranslation()
+  const sendMB = useSendProjectListMB()
 
   return (
     <>
       {showSignUpLink ? (
         <NavLinkItem
           href="/register"
-          className="primary"
-          onClick={e => {
-            sendMB('menu-clicked-register', { page: currentUrl })
+          className="primary nav-account-item"
+          onClick={() => {
+            sendMB('menu-click', { item: 'register', location: 'top-menu' })
           }}
         >
           {t('sign_up')}
@@ -26,8 +25,9 @@ export default function LoggedOutItems({
       ) : null}
       <NavLinkItem
         href="/login"
-        onClick={e => {
-          sendMB('menu-clicked-login', { page: currentUrl })
+        className="nav-account-item"
+        onClick={() => {
+          sendMB('menu-click', { item: 'login', location: 'top-menu' })
         }}
       >
         {t('log_in')}

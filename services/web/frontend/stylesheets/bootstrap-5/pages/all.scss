@@ -2,6 +2,8 @@
 @import 'cms';
 @import 'content';
 @import 'project-list';
+@import 'project-list-default';
+@import 'project-list-ds-nav';
 @import 'sidebar-v2-dash-pane';
 @import 'editor/ide';
 @import 'editor/toolbar';
@@ -27,6 +29,11 @@
 @import 'editor/review-panel-new';
 @import 'editor/table-generator-column-width-modal';
 @import 'editor/math-preview';
+@import 'editor/references-search';
 @import 'website-redesign';
 @import 'group-settings';
 @import 'templates-v2';
+@import 'homepage';
+@import 'login-register';
+@import 'login';
+@import 'register';

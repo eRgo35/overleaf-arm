@@ -49,7 +49,7 @@ import { ThirdPartyIds } from '../../../types/third-party-ids'
 import { Publisher } from '../../../types/subscription/dashboard/publisher'
 import { SubscriptionChangePreview } from '../../../types/subscription/subscription-change-preview'
 import { DefaultNavbarMetadata } from '@/features/ui/components/types/default-navbar-metadata'
-import { FatFooterMetadata } from '@/features/ui/components/types/fat-footer-metadata'
+import { FooterMetadata } from '@/features/ui/components/types/footer-metadata'
 export interface Meta {
   'ol-ExposedSettings': ExposedSettings
   'ol-allInReconfirmNotificationPeriods': UserEmailData[]
@@ -61,6 +61,7 @@ export interface Meta {
   'ol-brandVariation': Record<string, any>
 
   // dynamic keys based on permissions
+  'ol-canUseFlexibleLicensing': boolean
   'ol-cannot-add-secondary-email': boolean
   'ol-cannot-change-password': boolean
   'ol-cannot-delete-own-account': boolean
@@ -88,7 +89,7 @@ export interface Meta {
   'ol-error': { name: string } | undefined
   'ol-expired': boolean
   'ol-features': Features
-  'ol-footer': FatFooterMetadata
+  'ol-footer': FooterMetadata
   'ol-fromPlansPage': boolean
   'ol-galleryTagName': string
   'ol-gitBridgeEnabled': boolean
@@ -122,6 +123,7 @@ export interface Meta {
   'ol-isProfessional': boolean
   'ol-isRegisteredViaGoogle': boolean
   'ol-isRestrictedTokenMember': boolean
+  'ol-isReviewerRoleEnabled': boolean
   'ol-isSaas': boolean
   'ol-itm_campaign': string
   'ol-itm_content': string
@@ -130,6 +132,7 @@ export interface Meta {
   'ol-languages': SpellCheckLanguage[]
   'ol-learnedWords': string[]
   'ol-legacyEditorThemes': string[]
+  'ol-licenseQuantity': number | undefined
   'ol-linkSharingEnforcement': boolean
   'ol-linkSharingWarning': boolean
   'ol-loadingText': string
@@ -175,6 +178,7 @@ export interface Meta {
   'ol-settingsGroupSSO': { enabled: boolean } | undefined
   'ol-settingsPlans': Plan[]
   'ol-shouldAllowEditingDetails': boolean
+  'ol-shouldLoadHotjar': boolean
   'ol-showAiErrorAssistant': boolean
   'ol-showBrlGeoBanner': boolean
   'ol-showCouponField': boolean
@@ -200,6 +204,7 @@ export interface Meta {
   'ol-tags': Tag[]
   'ol-teamInvites': TeamInvite[]
   'ol-thirdPartyIds': ThirdPartyIds
+  'ol-totalLicenses': number
   'ol-translationIoNotLoaded': string
   'ol-translationLoadErrorMessage': string
   'ol-translationMaintenance': string

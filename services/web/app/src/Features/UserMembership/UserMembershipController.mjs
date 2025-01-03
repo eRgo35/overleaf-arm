@@ -11,6 +11,8 @@ import {
 import { SSOConfig } from '../../models/SSOConfig.js'
 import { Parser as CSVParser } from 'json2csv'
 import { expressify } from '@overleaf/promise-utils'
+import SplitTestHandler from '../SplitTests/SplitTestHandler.js'
+import PlansLocator from '../Subscription/PlansLocator.js'
 
 async function manageGroupMembers(req, res, next) {
   const { entity: subscription, entityConfig } = req
@@ -29,6 +31,14 @@ async function manageGroupMembers(req, res, next) {
   )
   const ssoConfig = await SSOConfig.findById(subscription.ssoConfig).exec()
 
+  await SplitTestHandler.promises.getAssignment(
+    req,
+    res,
+    'flexible-group-licensing'
+  )
+
+  const plan = PlansLocator.findLocalPlanInSettings(subscription.planCode)
+
   res.render('user_membership/group-members-react', {
     name: entityName,
     groupId: entityPrimaryKey,
@@ -36,6 +46,7 @@ async function manageGroupMembers(req, res, next) {
     groupSize: subscription.membersLimit,
     managedUsersActive: subscription.managedUsersEnabled,
     groupSSOActive: ssoConfig?.enabled,
+    canUseFlexibleLicensing: plan?.canUseFlexibleLicensing,
   })
 }
 

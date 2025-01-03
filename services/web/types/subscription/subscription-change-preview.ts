@@ -1,8 +1,15 @@
 export type SubscriptionChangePreview = {
-  change: SubscriptionChange
+  change: SubscriptionChangeDescription
   currency: string
   paymentMethod: string
-  immediateCharge: number
+  nextPlan: {
+    annual: boolean
+  }
+  immediateCharge: {
+    subtotal: number
+    tax: number
+    total: number
+  }
   nextInvoice: {
     date: string
     plan: {
@@ -27,11 +34,34 @@ type AddOn = {
   amount: number
 }
 
-type SubscriptionChange = AddOnPurchase
+export type SubscriptionChangeDescription =
+  | AddOnPurchase
+  | AddOnUpdate
+  | GroupPlanUpgrade
+  | PremiumSubscriptionChange
 
-type AddOnPurchase = {
+export type AddOnPurchase = {
   type: 'add-on-purchase'
-  addOn: {
+  addOn: Pick<AddOn, 'code' | 'name'>
+}
+
+export type AddOnUpdate = {
+  type: 'add-on-update'
+  addOn: Pick<AddOn, 'code' | 'quantity'> & {
+    prevQuantity: AddOn['quantity']
+  }
+}
+
+export type GroupPlanUpgrade = {
+  type: 'group-plan-upgrade'
+  prevPlan: {
+    name: string
+  }
+}
+
+export type PremiumSubscriptionChange = {
+  type: 'premium-subscription'
+  plan: {
     code: string
     name: string
   }

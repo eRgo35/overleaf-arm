@@ -2,7 +2,6 @@ import usePersistedState from '../../../shared/hooks/use-persisted-state'
 import getMeta from '../../../utils/meta'
 import { useCallback } from 'react'
 import Close from '@/shared/components/close'
-import { bsVersion } from '@/features/utils/bootstrap-5'
 
 export default function SurveyWidget() {
   const survey = getMeta('ol-survey')
@@ -19,16 +18,16 @@ export default function SurveyWidget() {
     return null
   }
 
+  // Short-term hard-coded special case: hide the "DS nav" survey for users on
+  // the default variant
+  if (survey?.name === 'ds-nav') {
+    return null
+  }
+
   return (
     <div className="user-notifications">
       <div className="notification-entry">
-        <div
-          role="alert"
-          className={bsVersion({
-            bs3: 'alert alert-info-alt',
-            bs5: 'survey-notification',
-          })}
-        >
+        <div role="alert" className="survey-notification">
           <div className="notification-body">
             {survey.preText}&nbsp;
             <a

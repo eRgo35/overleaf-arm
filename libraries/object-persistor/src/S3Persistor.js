@@ -18,6 +18,7 @@ const fs = require('node:fs')
 const S3 = require('aws-sdk/clients/s3')
 const { URL } = require('node:url')
 const { WriteError, ReadError, NotFoundError } = require('./Errors')
+const zlib = require('node:zlib')
 
 /**
  * Wrapper with private fields to avoid revealing them on console, JSON.stringify or similar.
@@ -60,9 +61,13 @@ class SSECOptions {
 }
 
 class S3Persistor extends AbstractPersistor {
+  /** @type {Map<string, S3>} */
+  #clients = new Map()
+
   constructor(settings = {}) {
     super()
 
+    settings.storageClass = settings.storageClass || {}
     this.settings = settings
   }
 
@@ -83,6 +88,7 @@ class S3Persistor extends AbstractPersistor {
    * @param {Object} opts
    * @param {string} [opts.contentType]
    * @param {string} [opts.contentEncoding]
+   * @param {number} [opts.contentLength]
    * @param {'*'} [opts.ifNoneMatch]
    * @param {SSECOptions} [opts.ssecOptions]
    * @param {string} [opts.sourceMd5]
@@ -99,11 +105,15 @@ class S3Persistor extends AbstractPersistor {
       // observer will catch errors, clean up and log a warning
       pipeline(readStream, observer, () => {})
 
-      // if we have an md5 hash, pass this to S3 to verify the upload
+      /** @type {S3.PutObjectRequest} */
       const uploadOptions = {
         Bucket: bucketName,
         Key: key,
         Body: observer,
+      }
+
+      if (this.settings.storageClass[bucketName]) {
+        uploadOptions.StorageClass = this.settings.storageClass[bucketName]
       }
 
       if (opts.contentType) {
@@ -111,6 +121,9 @@ class S3Persistor extends AbstractPersistor {
       }
       if (opts.contentEncoding) {
         uploadOptions.ContentEncoding = opts.contentEncoding
+      }
+      if (opts.contentLength) {
+        uploadOptions.ContentLength = opts.contentLength
       }
       if (opts.ifNoneMatch === '*') {
         uploadOptions.IfNoneMatch = '*'
@@ -121,16 +134,22 @@ class S3Persistor extends AbstractPersistor {
 
       // if we have an md5 hash, pass this to S3 to verify the upload - otherwise
       // we rely on the S3 client's checksum calculation to validate the upload
-      const clientOptions = {}
+      let computeChecksums = false
       if (opts.sourceMd5) {
         uploadOptions.ContentMD5 = PersistorHelper.hexToBase64(opts.sourceMd5)
       } else {
-        clientOptions.computeChecksums = true
+        computeChecksums = true
       }
 
-      await this._getClientForBucket(bucketName, clientOptions)
-        .upload(uploadOptions, { partSize: this.settings.partSize })
-        .promise()
+      if (this.settings.disableMultiPartUpload) {
+        await this._getClientForBucket(bucketName, computeChecksums)
+          .putObject(uploadOptions)
+          .promise()
+      } else {
+        await this._getClientForBucket(bucketName, computeChecksums)
+          .upload(uploadOptions, { partSize: this.settings.partSize })
+          .promise()
+      }
     } catch (err) {
       throw PersistorHelper.wrapError(
         err,
@@ -144,10 +163,10 @@ class S3Persistor extends AbstractPersistor {
   /**
    * @param {string} bucketName
    * @param {string} key
-   * @param {Object} opts
+   * @param {Object} [opts]
    * @param {number} [opts.start]
    * @param {number} [opts.end]
-   * @param {string} [opts.contentEncoding]
+   * @param {boolean} [opts.autoGunzip]
    * @param {SSECOptions} [opts.ssecOptions]
    * @return {Promise<NodeJS.ReadableStream>}
    */
@@ -172,12 +191,14 @@ class S3Persistor extends AbstractPersistor {
     const req = this._getClientForBucket(bucketName).getObject(params)
     const stream = req.createReadStream()
 
+    let contentEncoding
     try {
       await new Promise((resolve, reject) => {
-        req.on('httpHeaders', statusCode => {
+        req.on('httpHeaders', (statusCode, headers) => {
           switch (statusCode) {
             case 200: // full response
             case 206: // partial response
+              contentEncoding = headers['content-encoding']
               return resolve(undefined)
             case 403: // AccessDenied
               return // handled by stream.on('error') handler below
@@ -202,7 +223,11 @@ class S3Persistor extends AbstractPersistor {
     }
     // Return a PassThrough stream with a minimal interface. It will buffer until the caller starts reading. It will emit errors from the source stream (Stream.pipeline passes errors along).
     const pass = new PassThrough()
-    pipeline(stream, observer, pass, err => {
+    const transformer = []
+    if (contentEncoding === 'gzip' && opts.autoGunzip) {
+      transformer.push(zlib.createGunzip())
+    }
+    pipeline(stream, observer, ...transformer, pass, err => {
       if (err) req.abort()
     })
     return pass
@@ -327,6 +352,18 @@ class S3Persistor extends AbstractPersistor {
   async getObjectSize(bucketName, key, opts = {}) {
     const response = await this.#headObject(bucketName, key, opts)
     return response.ContentLength || 0
+  }
+
+  /**
+   * @param {string} bucketName
+   * @param {string} key
+   * @param {Object} opts
+   * @param {SSECOptions} [opts.ssecOptions]
+   * @return {Promise<string | undefined>}
+   */
+  async getObjectStorageClass(bucketName, key, opts = {}) {
+    const response = await this.#headObject(bucketName, key, opts)
+    return response.StorageClass
   }
 
   /**
@@ -483,23 +520,34 @@ class S3Persistor extends AbstractPersistor {
 
   /**
    * @param {string} bucket
-   * @param {Object} [clientOptions]
+   * @param {boolean} computeChecksums
    * @return {S3}
    * @private
    */
-  _getClientForBucket(bucket, clientOptions) {
-    return new S3(
-      this._buildClientOptions(
-        this.settings.bucketCreds?.[bucket],
-        clientOptions
+  _getClientForBucket(bucket, computeChecksums = false) {
+    /** @type {S3.Types.ClientConfiguration} */
+    const clientOptions = {}
+    const cacheKey = `${bucket}:${computeChecksums}`
+    if (computeChecksums) {
+      clientOptions.computeChecksums = true
+    }
+    let client = this.#clients.get(cacheKey)
+    if (!client) {
+      client = new S3(
+        this._buildClientOptions(
+          this.settings.bucketCreds?.[bucket],
+          clientOptions
+        )
       )
-    )
+      this.#clients.set(cacheKey, client)
+    }
+    return client
   }
 
   /**
    * @param {Object} bucketCredentials
-   * @param {Object} clientOptions
-   * @return {Object}
+   * @param {S3.Types.ClientConfiguration} clientOptions
+   * @return {S3.Types.ClientConfiguration}
    * @private
    */
   _buildClientOptions(bucketCredentials, clientOptions) {

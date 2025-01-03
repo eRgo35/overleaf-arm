@@ -1,8 +1,8 @@
 import { expect } from 'chai'
 import async from 'async'
 import User from './helpers/User.js'
-import Institution from './helpers/Institution.js'
-import Subscription from './helpers/Subscription.js'
+import Institution from './helpers/Institution.mjs'
+import Subscription from './helpers/Subscription.mjs'
 import Publisher from './helpers/Publisher.js'
 
 describe('UserMembershipAuthorization', function () {
@@ -55,9 +55,9 @@ describe('UserMembershipAuthorization', function () {
   })
 
   describe('institution', function () {
-    beforeEach(function (done) {
+    beforeEach(async function () {
       this.institution = new Institution()
-      async.series([this.institution.ensureExists.bind(this.institution)], done)
+      await this.institution.ensureExists(this.institution)
     })
 
     describe('users management', function () {

@@ -4,8 +4,20 @@ import fetchMock from 'fetch-mock'
 import NewProjectButton from '../../../../../frontend/js/features/project-list/components/new-project-button'
 import { renderWithProjectListContext } from '../helpers/render-with-context'
 import getMeta from '@/utils/meta'
+import * as bootstrapUtils from '@/features/utils/bootstrap-5'
+import sinon, { type SinonStub } from 'sinon'
 
 describe('<NewProjectButton />', function () {
+  let isBootstrap5Stub: SinonStub
+
+  before(function () {
+    isBootstrap5Stub = sinon.stub(bootstrapUtils, 'isBootstrap5').returns(true)
+  })
+
+  after(function () {
+    isBootstrap5Stub.restore()
+  })
+
   beforeEach(function () {
     fetchMock.reset()
   })
@@ -117,7 +129,7 @@ describe('<NewProjectButton />', function () {
 
       // dynamic menu based on portalTemplates
       const affiliationTemplate = screen.getByRole('menuitem', {
-        name: 'Affiliation 1',
+        name: 'Affiliation 1 Template',
       })
       expect(affiliationTemplate.getAttribute('href')).to.equal(
         '/edu/test-new-template#templates'

@@ -28,12 +28,15 @@ const SubscriptionFormatters = require('./SubscriptionFormatters')
 const HttpErrorHandler = require('../Errors/HttpErrorHandler')
 const { URLSearchParams } = require('url')
 const RecurlyClient = require('./RecurlyClient')
+const { AI_ADD_ON_CODE } = require('./RecurlyEntities')
+const PlansLocator = require('./PlansLocator')
 
 /**
+ * @import { SubscriptionChangeDescription } from '../../../../types/subscription/subscription-change-preview'
  * @import { SubscriptionChangePreview } from '../../../../types/subscription/subscription-change-preview'
+ * @import { RecurlySubscriptionChange } from './RecurlyEntities'
+ * @import { PaymentMethod } from './types'
  */
-
-const AI_ADDON_CODES = ['assistant', 'assistant-annual']
 
 const groupPlanModalOptions = Settings.groupPlanModalOptions
 const validGroupPlanModalOptions = {
@@ -65,10 +68,8 @@ function _getGroupPlanModalDefaults(req, currency) {
   }
 }
 
-function _plansBanners({ geoPricingLATAMTestVariant, countryCode }) {
-  const showLATAMBanner =
-    geoPricingLATAMTestVariant === 'latam' &&
-    ['MX', 'CO', 'CL', 'PE'].includes(countryCode)
+function _plansBanners(countryCode) {
+  const showLATAMBanner = ['MX', 'CO', 'CL', 'PE'].includes(countryCode)
   const showInrGeoBanner = countryCode === 'IN'
   const showBrlGeoBanner = countryCode === 'BR'
   return { showLATAMBanner, showInrGeoBanner, showBrlGeoBanner }
@@ -102,20 +103,15 @@ async function plansPage(req, res) {
 
   const plans = SubscriptionViewModelBuilder.buildPlansList()
 
-  const { currency, countryCode, geoPricingLATAMTestVariant } =
-    await _getRecommendedCurrency(req, res)
+  const { currency, countryCode } = await _getRecommendedCurrency(req, res)
 
   const latamCountryBannerDetails = await getLatamCountryBannerDetails(req, res)
   const groupPlanModalDefaults = _getGroupPlanModalDefaults(req, currency)
 
   const currentView = 'annual'
 
-  const { showLATAMBanner, showInrGeoBanner, showBrlGeoBanner } = _plansBanners(
-    {
-      geoPricingLATAMTestVariant,
-      countryCode,
-    }
-  )
+  const { showLATAMBanner, showInrGeoBanner, showBrlGeoBanner } =
+    _plansBanners(countryCode)
 
   const localCcyAssignment = await SplitTestHandler.promises.getAssignment(
     req,
@@ -126,6 +122,8 @@ async function plansPage(req, res) {
     localCcyAssignment.variant === 'enabled'
       ? formatCurrencyLocalized
       : SubscriptionHelper.formatCurrencyDefault
+
+  const shouldLoadHotjar = await getShouldLoadHotjar(req, res)
 
   res.render('subscriptions/plans', {
     title: 'plans_and_pricing',
@@ -153,19 +151,12 @@ async function plansPage(req, res) {
     latamCountryBannerDetails,
     countryCode,
     websiteRedesignPlansVariant: 'default',
+    shouldLoadHotjar,
   })
 }
 
 async function plansPageLightDesign(req, res) {
-  const splitTestActive = await SplitTestHandler.promises.isSplitTestActive(
-    'website-redesign-plans'
-  )
-
-  if (!splitTestActive && req.query.preview !== 'true') {
-    return res.redirect(302, '/user/subscription/plans')
-  }
-  const { currency, countryCode, geoPricingLATAMTestVariant } =
-    await _getRecommendedCurrency(req, res)
+  const { currency, countryCode } = await _getRecommendedCurrency(req, res)
 
   const language = req.i18n.language || 'en'
   const currentView = 'annual'
@@ -182,14 +173,12 @@ async function plansPageLightDesign(req, res) {
       ? formatCurrencyLocalized
       : SubscriptionHelper.formatCurrencyDefault
 
-  const { showLATAMBanner, showInrGeoBanner, showBrlGeoBanner } = _plansBanners(
-    {
-      geoPricingLATAMTestVariant,
-      countryCode,
-    }
-  )
+  const { showLATAMBanner, showInrGeoBanner, showBrlGeoBanner } =
+    _plansBanners(countryCode)
 
   const latamCountryBannerDetails = await getLatamCountryBannerDetails(req, res)
+
+  const shouldLoadHotjar = await getShouldLoadHotjar(req, res)
 
   res.render('subscriptions/plans-light-design', {
     title: 'plans_and_pricing',
@@ -217,6 +206,7 @@ async function plansPageLightDesign(req, res) {
     latamCountryBannerDetails,
     countryCode,
     websiteRedesignPlansVariant: 'light-design',
+    shouldLoadHotjar,
   })
 }
 
@@ -246,6 +236,7 @@ async function userSubscriptionPage(req, res) {
     res,
     'bootstrap-5-subscription'
   )
+  await SplitTestHandler.promises.getAssignment(req, res, 'group-pricing-2025')
 
   const results =
     await SubscriptionViewModelBuilder.promises.buildUsersSubscriptionViewModel(
@@ -263,8 +254,8 @@ async function userSubscriptionPage(req, res) {
     managedInstitutions,
     managedPublishers,
   } = results
-  const hasSubscription =
-    await LimitationsManager.promises.userHasV1OrV2Subscription(user)
+  const { hasSubscription } =
+    await LimitationsManager.promises.userHasSubscription(user)
 
   const userCanExtendTrial = (
     await Modules.promises.hooks.fire('userCanExtendTrial', user)
@@ -356,29 +347,30 @@ async function interstitialPaymentPage(req, res) {
   }
 
   const user = SessionManager.getSessionUser(req.session)
-  const { recommendedCurrency, countryCode, geoPricingLATAMTestVariant } =
-    await _getRecommendedCurrency(req, res)
+  const { recommendedCurrency, countryCode } = await _getRecommendedCurrency(
+    req,
+    res
+  )
 
   const latamCountryBannerDetails = await getLatamCountryBannerDetails(req, res)
 
-  const hasSubscription =
-    await LimitationsManager.promises.userHasV1OrV2Subscription(user)
+  const { hasSubscription } =
+    await LimitationsManager.promises.userHasSubscription(user)
   const showSkipLink = req.query?.skipLink === 'true'
 
   if (hasSubscription) {
     res.redirect('/user/subscription?hasSubscription=true')
   } else {
     const { showLATAMBanner, showInrGeoBanner, showBrlGeoBanner } =
-      _plansBanners({
-        geoPricingLATAMTestVariant,
-        countryCode,
-      })
+      _plansBanners(countryCode)
 
     const localCcyAssignment = await SplitTestHandler.promises.getAssignment(
       req,
       res,
       'local-ccy-format-v2'
     )
+
+    const shouldLoadHotjar = await getShouldLoadHotjar(req, res)
 
     res.render(template, {
       title: 'subscribe',
@@ -400,6 +392,7 @@ async function interstitialPaymentPage(req, res) {
       skipLinkTarget: req.session?.postCheckoutRedirect || '/project',
       websiteRedesignPlansVariant: websiteRedesignPlansAssignment.variant,
       countryCode,
+      shouldLoadHotjar,
     })
   }
 }
@@ -489,7 +482,7 @@ async function previewAddonPurchase(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
   const addOnCode = req.params.addOnCode
 
-  if (!AI_ADDON_CODES.includes(addOnCode)) {
+  if (addOnCode !== AI_ADD_ON_CODE) {
     return HttpErrorHandler.notFound(req, res, `Unknown add-on: ${addOnCode}`)
   }
 
@@ -517,38 +510,17 @@ async function previewAddonPurchase(req, res) {
   )
 
   /** @type {SubscriptionChangePreview} */
-  const changePreview = {
-    change: {
+  const changePreview = makeChangePreview(
+    {
       type: 'add-on-purchase',
       addOn: {
         code: addOn.code,
         name: addOn.name,
       },
     },
-    currency: subscription.currency,
-    immediateCharge: subscriptionChange.immediateCharge,
-    paymentMethod: paymentMethod.toString(),
-    nextInvoice: {
-      date: subscription.periodEnd.toISOString(),
-      plan: {
-        name: subscriptionChange.nextPlanName,
-        amount: subscriptionChange.nextPlanPrice,
-      },
-      addOns: subscriptionChange.nextAddOns.map(addOn => ({
-        code: addOn.code,
-        name: addOn.name,
-        quantity: addOn.quantity,
-        unitAmount: addOn.unitPrice,
-        amount: addOn.preTaxTotal,
-      })),
-      subtotal: subscriptionChange.subtotal,
-      tax: {
-        rate: subscription.taxRate,
-        amount: subscriptionChange.tax,
-      },
-      total: subscriptionChange.total,
-    },
-  }
+    subscriptionChange,
+    paymentMethod
+  )
 
   res.render('subscriptions/preview-change', { changePreview })
 }
@@ -559,13 +531,17 @@ async function purchaseAddon(req, res, next) {
   // currently we only support having a quantity of 1
   const quantity = 1
   // currently we only support one add-on, the Ai add-on
-  if (!AI_ADDON_CODES.includes(addOnCode)) {
+  if (addOnCode !== AI_ADD_ON_CODE) {
     return res.sendStatus(404)
   }
 
   logger.debug({ userId: user._id, addOnCode }, 'purchasing add-ons')
   try {
-    await SubscriptionHandler.promises.purchaseAddon(user, addOnCode, quantity)
+    await SubscriptionHandler.promises.purchaseAddon(
+      user._id,
+      addOnCode,
+      quantity
+    )
     return res.sendStatus(200)
   } catch (err) {
     if (err instanceof DuplicateAddOnError) {
@@ -591,14 +567,14 @@ async function removeAddon(req, res, next) {
   const user = SessionManager.getSessionUser(req.session)
   const addOnCode = req.params.addOnCode
 
-  if (!AI_ADDON_CODES.includes(addOnCode)) {
+  if (addOnCode !== AI_ADD_ON_CODE) {
     return res.sendStatus(404)
   }
 
   logger.debug({ userId: user._id, addOnCode }, 'removing add-ons')
 
   try {
-    await SubscriptionHandler.promises.removeAddon(user, addOnCode)
+    await SubscriptionHandler.promises.removeAddon(user._id, addOnCode)
     res.sendStatus(200)
   } catch (err) {
     if (err instanceof AddOnNotPresentError) {
@@ -618,6 +594,31 @@ async function removeAddon(req, res, next) {
       return next(err)
     }
   }
+}
+
+async function previewSubscription(req, res, next) {
+  const planCode = req.query.planCode
+  if (!planCode) {
+    return HttpErrorHandler.notFound(req, res, 'Missing plan code')
+  }
+  const plan = await RecurlyClient.promises.getPlan(planCode)
+  const userId = SessionManager.getLoggedInUserId(req.session)
+  const subscriptionChange =
+    await SubscriptionHandler.promises.previewSubscriptionChange(
+      userId,
+      planCode
+    )
+  const paymentMethod = await RecurlyClient.promises.getPaymentMethod(userId)
+  const changePreview = makeChangePreview(
+    {
+      type: 'premium-subscription',
+      plan: { code: plan.code, name: plan.name },
+    },
+    subscriptionChange,
+    paymentMethod
+  )
+
+  res.render('subscriptions/preview-change', { changePreview })
 }
 
 function updateSubscription(req, res, next) {
@@ -749,7 +750,7 @@ function recurlyCallback(req, res, next) {
 async function extendTrial(req, res) {
   const user = SessionManager.getSessionUser(req.session)
   const { subscription } =
-    await LimitationsManager.promises.userHasV2Subscription(user)
+    await LimitationsManager.promises.userHasSubscription(user)
 
   const allowed = (
     await Modules.promises.hooks.fire('userCanExtendTrial', user)
@@ -814,20 +815,7 @@ async function _getRecommendedCurrency(req, res) {
   }
   const currencyLookup = await GeoIpLookup.promises.getCurrencyCode(ip)
   const countryCode = currencyLookup.countryCode
-  let recommendedCurrency = currencyLookup.currencyCode
-
-  const assignmentLATAM = await SplitTestHandler.promises.getAssignment(
-    req,
-    res,
-    'geo-pricing-latam-v2'
-  )
-
-  if (
-    ['MXN', 'COP', 'CLP', 'PEN'].includes(recommendedCurrency) &&
-    assignmentLATAM?.variant === 'default'
-  ) {
-    recommendedCurrency = GeoIpLookup.DEFAULT_CURRENCY_CODE
-  }
+  const recommendedCurrency = currencyLookup.currencyCode
 
   let currency = null
   const queryCurrency = req.query.currency?.toUpperCase()
@@ -841,7 +829,6 @@ async function _getRecommendedCurrency(req, res) {
     currency,
     recommendedCurrency,
     countryCode,
-    geoPricingLATAMTestVariant: assignmentLATAM?.variant,
   }
 }
 
@@ -888,6 +875,63 @@ async function getLatamCountryBannerDetails(req, res) {
   return latamCountryBannerDetails
 }
 
+async function getShouldLoadHotjar(req, res) {
+  const assignment = await SplitTestHandler.promises.getAssignment(
+    req,
+    res,
+    'hotjar-plans'
+  )
+  return assignment?.variant === 'enabled'
+}
+
+/**
+ * Build a subscription change preview for display purposes
+ *
+ * @param {SubscriptionChangeDescription} subscriptionChangeDescription A description of the change for the frontend
+ * @param {RecurlySubscriptionChange} subscriptionChange The subscription change object coming from Recurly
+ * @param {PaymentMethod} paymentMethod The payment method associated to the user
+ * @return {SubscriptionChangePreview}
+ */
+function makeChangePreview(
+  subscriptionChangeDescription,
+  subscriptionChange,
+  paymentMethod
+) {
+  const subscription = subscriptionChange.subscription
+  const nextPlan = PlansLocator.findLocalPlanInSettings(
+    subscriptionChange.nextPlanCode
+  )
+  return {
+    change: subscriptionChangeDescription,
+    currency: subscription.currency,
+    immediateCharge: { ...subscriptionChange.immediateCharge },
+    paymentMethod: paymentMethod.toString(),
+    nextPlan: {
+      annual: nextPlan.annual ?? false,
+    },
+    nextInvoice: {
+      date: subscription.periodEnd.toISOString(),
+      plan: {
+        name: subscriptionChange.nextPlanName,
+        amount: subscriptionChange.nextPlanPrice,
+      },
+      addOns: subscriptionChange.nextAddOns.map(addOn => ({
+        code: addOn.code,
+        name: addOn.name,
+        quantity: addOn.quantity,
+        unitAmount: addOn.unitPrice,
+        amount: addOn.preTaxTotal,
+      })),
+      subtotal: subscriptionChange.subtotal,
+      tax: {
+        rate: subscription.taxRate,
+        amount: subscriptionChange.tax,
+      },
+      total: subscriptionChange.total,
+    },
+  }
+}
+
 module.exports = {
   plansPage: expressify(plansPage),
   plansPageLightDesign: expressify(plansPageLightDesign),
@@ -897,6 +941,7 @@ module.exports = {
   cancelSubscription,
   canceledSubscription: expressify(canceledSubscription),
   cancelV1Subscription,
+  previewSubscription: expressify(previewSubscription),
   updateSubscription,
   cancelPendingSubscriptionChange,
   updateAccountEmailAddress,
@@ -910,6 +955,7 @@ module.exports = {
   previewAddonPurchase: expressify(previewAddonPurchase),
   purchaseAddon,
   removeAddon,
+  makeChangePreview,
   promises: {
     getRecommendedCurrency: _getRecommendedCurrency,
     getLatamCountryBannerDetails,

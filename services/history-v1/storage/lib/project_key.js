@@ -1,3 +1,4 @@
+// Keep in sync with services/web/app/src/Features/History/project_key.js
 const _ = require('lodash')
 const path = require('node:path')
 

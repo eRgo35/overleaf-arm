@@ -1,5 +1,6 @@
 import esmock from 'esmock'
 import sinon from 'sinon'
+
 const modulePath =
   '../../../../app/src/Features/Subscription/SubscriptionGroupController'
 
@@ -24,11 +25,40 @@ describe('SubscriptionGroupController', function () {
 
     this.subscription = {
       _id: this.subscriptionId,
+      teamName: 'Cool group',
+      groupPlan: true,
+      membersLimit: 5,
     }
+
+    this.plan = {
+      canUseFlexibleLicensing: true,
+    }
+
+    this.previewSubscriptionChangeData = {
+      change: {},
+      currency: 'USD',
+    }
+
+    this.createSubscriptionChangeData = { adding: 1 }
 
     this.SubscriptionGroupHandler = {
       promises: {
         removeUserFromGroup: sinon.stub().resolves(),
+        getUsersGroupSubscriptionDetails: sinon.stub().resolves({
+          subscription: this.subscription,
+          plan: this.plan,
+          recurlySubscription: {},
+        }),
+        previewAddSeatsSubscriptionChange: sinon
+          .stub()
+          .resolves(this.previewSubscriptionChangeData),
+        createAddSeatsSubscriptionChange: sinon
+          .stub()
+          .resolves(this.createSubscriptionChangeData),
+        ensureFlexibleLicensingEnabled: sinon.stub().resolves(),
+        getGroupPlanUpgradePreview: sinon
+          .stub()
+          .resolves(this.previewSubscriptionChangeData),
       },
     }
 
@@ -61,6 +91,28 @@ describe('SubscriptionGroupController', function () {
       },
     }
 
+    this.SplitTestHandler = {
+      promises: {
+        getAssignment: sinon.stub().resolves(),
+      },
+    }
+
+    this.UserGetter = {
+      promises: {
+        getUserEmail: sinon.stub().resolves(this.user.email),
+      },
+    }
+
+    this.RecurlyClient = {}
+
+    this.SubscriptionController = {}
+
+    this.SubscriptionModel = { Subscription: {} }
+
+    this.PlansHelper = {
+      isProfessionalGroupPlan: sinon.stub().returns(false),
+    }
+
     this.Controller = await esmock.strict(modulePath, {
       '../../../../app/src/Features/Subscription/SubscriptionGroupHandler':
         this.SubscriptionGroupHandler,
@@ -71,6 +123,26 @@ describe('SubscriptionGroupController', function () {
       '../../../../app/src/Features/User/UserAuditLogHandler':
         this.UserAuditLogHandler,
       '../../../../app/src/infrastructure/Modules': this.Modules,
+      '../../../../app/src/Features/SplitTests/SplitTestHandler':
+        this.SplitTestHandler,
+      '../../../../app/src/Features/User/UserGetter': this.UserGetter,
+      '../../../../app/src/Features/Errors/ErrorController':
+        (this.ErrorController = {
+          notFound: sinon.stub(),
+        }),
+      '../../../../app/src/Features/Subscription/SubscriptionController':
+        this.SubscriptionController,
+      '../../../../app/src/Features/Subscription/RecurlyClient':
+        this.RecurlyClient,
+      '../../../../app/src/Features/Subscription/PlansHelper': this.PlansHelper,
+      '../../../../app/src/models/Subscription': this.SubscriptionModel,
+      '@overleaf/logger': {
+        err: sinon.stub(),
+        error: sinon.stub(),
+        warn: sinon.stub(),
+        log: sinon.stub(),
+        debug: sinon.stub(),
+      },
     })
   })
 
@@ -251,6 +323,259 @@ describe('SubscriptionGroupController', function () {
         },
       }
       this.Controller.removeSelfFromGroup(this.req, res, done)
+    })
+  })
+
+  describe('addSeatsToGroupSubscription', function () {
+    it('should render the "add seats" page', function (done) {
+      const res = {
+        render: (page, props) => {
+          this.SubscriptionGroupHandler.promises.getUsersGroupSubscriptionDetails
+            .calledWith(this.req)
+            .should.equal(true)
+          this.SubscriptionGroupHandler.promises.ensureFlexibleLicensingEnabled
+            .calledWith(this.plan)
+            .should.equal(true)
+          page.should.equal('subscriptions/add-seats')
+          props.subscriptionId.should.equal(this.subscriptionId)
+          props.groupName.should.equal(this.subscription.teamName)
+          props.totalLicenses.should.equal(this.subscription.membersLimit)
+          props.isProfessional.should.equal(false)
+          done()
+        },
+      }
+
+      this.Controller.addSeatsToGroupSubscription(this.req, res)
+    })
+
+    it('should redirect to subscription page when getting subscription details fails', function (done) {
+      this.SubscriptionGroupHandler.promises.getUsersGroupSubscriptionDetails =
+        sinon.stub().rejects()
+
+      const res = {
+        redirect: url => {
+          url.should.equal('/user/subscription')
+          done()
+        },
+      }
+
+      this.Controller.addSeatsToGroupSubscription(this.req, res)
+    })
+
+    it('should redirect to subscription page when flexible licensing is not enabled', function (done) {
+      this.SubscriptionGroupHandler.promises.ensureFlexibleLicensingEnabled =
+        sinon.stub().rejects()
+
+      const res = {
+        redirect: url => {
+          url.should.equal('/user/subscription')
+          done()
+        },
+      }
+
+      this.Controller.addSeatsToGroupSubscription(this.req, res)
+    })
+  })
+
+  describe('previewAddSeatsSubscriptionChange', function () {
+    it('should preview "add seats" change', function (done) {
+      const res = {
+        json: data => {
+          this.SubscriptionGroupHandler.promises.previewAddSeatsSubscriptionChange
+            .calledWith(this.req)
+            .should.equal(true)
+          data.should.deep.equal(this.previewSubscriptionChangeData)
+          done()
+        },
+      }
+
+      this.Controller.previewAddSeatsSubscriptionChange(this.req, res)
+    })
+
+    it('should fail previewing "add seats" change', function (done) {
+      this.SubscriptionGroupHandler.promises.previewAddSeatsSubscriptionChange =
+        sinon.stub().rejects()
+
+      const res = {
+        status: statusCode => {
+          statusCode.should.equal(400)
+
+          return {
+            end: () => {
+              done()
+            },
+          }
+        },
+      }
+
+      this.Controller.previewAddSeatsSubscriptionChange(this.req, res)
+    })
+  })
+
+  describe('createAddSeatsSubscriptionChange', function () {
+    it('should apply "add seats" change', function (done) {
+      const res = {
+        json: data => {
+          this.SubscriptionGroupHandler.promises.createAddSeatsSubscriptionChange
+            .calledWith(this.req)
+            .should.equal(true)
+          data.should.deep.equal(this.createSubscriptionChangeData)
+          done()
+        },
+      }
+
+      this.Controller.createAddSeatsSubscriptionChange(this.req, res)
+    })
+
+    it('should fail applying "add seats" change', function (done) {
+      this.SubscriptionGroupHandler.promises.createAddSeatsSubscriptionChange =
+        sinon.stub().rejects()
+
+      const res = {
+        status: statusCode => {
+          statusCode.should.equal(400)
+
+          return {
+            end: () => {
+              done()
+            },
+          }
+        },
+      }
+
+      this.Controller.createAddSeatsSubscriptionChange(this.req, res)
+    })
+  })
+
+  describe('submitForm', function () {
+    it('should build and pass the request body to the sales submit handler', function (done) {
+      const adding = 100
+      this.req.body = { adding }
+
+      const res = {
+        sendStatus: code => {
+          this.Modules.promises.hooks.fire
+            .calledWith('sendSupportRequest', {
+              email: this.user.email,
+              subject: 'Sales Contact Form',
+              message:
+                '\n' +
+                '**Overleaf Sales Contact Form:**\n' +
+                '\n' +
+                '**Subject:** Self-Serve Group User Increase Request\n' +
+                '\n' +
+                `**Estimated Number of Users:** ${adding}\n` +
+                '\n' +
+                `**Message:** This email has been generated on behalf of user with email **${this.user.email}** to request an increase in the total number of users for their subscription.`,
+              inbox: 'sales',
+            })
+            .should.equal(true)
+          sinon.assert.calledOnce(this.Modules.promises.hooks.fire)
+          code.should.equal(204)
+          done()
+        },
+      }
+      this.Controller.submitForm(this.req, res, done)
+    })
+  })
+
+  describe('flexibleLicensingSplitTest', function () {
+    it('passes when the variant is "enabled"', function (done) {
+      const res = sinon.stub()
+      const next = () => {
+        this.ErrorController.notFound.notCalled.should.equal(true)
+        done()
+      }
+      this.SplitTestHandler.promises.getAssignment.resolves({
+        variant: 'enabled',
+      })
+      this.Controller.flexibleLicensingSplitTest(this.req, res, next, done)
+    })
+
+    it('returns error page when the variant is "default"', function (done) {
+      const res = sinon.stub()
+      const next = sinon.stub()
+      this.ErrorController.notFound = sinon.stub().callsFake(() => {
+        next.notCalled.should.equal(true)
+        done()
+      })
+      this.SplitTestHandler.promises.getAssignment.resolves({
+        variant: 'default',
+      })
+      this.Controller.flexibleLicensingSplitTest(this.req, res, next, done)
+    })
+  })
+
+  describe('subscriptionUpgradePage', function () {
+    it('should render "subscription upgrade" page', function (done) {
+      const olSubscription = { membersLimit: 1, teamName: 'test team' }
+      this.SubscriptionModel.Subscription.findOne = () => {
+        return {
+          exec: () => olSubscription,
+        }
+      }
+
+      const res = {
+        render: (page, data) => {
+          this.SubscriptionGroupHandler.promises.getGroupPlanUpgradePreview
+            .calledWith(this.req.session.user._id)
+            .should.equal(true)
+          page.should.equal('subscriptions/upgrade-group-subscription-react')
+          data.totalLicenses.should.equal(olSubscription.membersLimit)
+          data.groupName.should.equal(olSubscription.teamName)
+          data.changePreview.should.equal(this.previewSubscriptionChangeData)
+          done()
+        },
+      }
+
+      this.Controller.subscriptionUpgradePage(this.req, res)
+    })
+
+    it('should redirect if failed to generate preview', function (done) {
+      this.SubscriptionGroupHandler.promises.getGroupPlanUpgradePreview = sinon
+        .stub()
+        .rejects()
+
+      const res = {
+        redirect: url => {
+          url.should.equal('/user/subscription')
+          done()
+        },
+      }
+
+      this.Controller.subscriptionUpgradePage(this.req, res)
+    })
+  })
+
+  describe('upgradeSubscription', function () {
+    it('should send 200 response', function (done) {
+      this.SubscriptionGroupHandler.promises.upgradeGroupPlan = sinon
+        .stub()
+        .resolves()
+
+      const res = {
+        sendStatus: code => {
+          code.should.equal(200)
+          done()
+        },
+      }
+
+      this.Controller.upgradeSubscription(this.req, res)
+    })
+
+    it('should send 500 response', function (done) {
+      this.SubscriptionGroupHandler.promises.upgradeGroupPlan = sinon
+        .stub()
+        .rejects()
+
+      const res = {
+        sendStatus: code => {
+          code.should.equal(500)
+          done()
+        },
+      }
+
+      this.Controller.upgradeSubscription(this.req, res)
     })
   })
 })

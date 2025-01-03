@@ -115,7 +115,7 @@ async function projectListPage(req, res, next) {
   })
   const user = await User.findById(
     userId,
-    `email emails features alphaProgram betaProgram lastPrimaryEmailCheck labsProgram signUpDate${
+    `email emails features alphaProgram betaProgram lastPrimaryEmailCheck signUpDate${
       isSaas ? ' enrollment writefull completedTutorials' : ''
     }`
   )
@@ -167,16 +167,6 @@ async function projectListPage(req, res, next) {
 
     if (user && UserPrimaryEmailCheckHandler.requiresPrimaryEmailCheck(user)) {
       return res.redirect('/user/emails/primary-email-check')
-    }
-  } else {
-    if (!process.env.OVERLEAF_IS_SERVER_PRO) {
-      // temporary survey for CE: https://github.com/overleaf/internal/issues/19710
-      survey = {
-        name: 'ce-survey',
-        preText: 'Help us improve Overleaf',
-        linkText: 'by filling out this quick survey',
-        url: 'https://docs.google.com/forms/d/e/1FAIpQLSdPAS-731yaLOvRM8HW7j6gVeOpcmB_X5A5qwgNJT7Oj09lLA/viewform?usp=sf_link',
-      }
     }
   }
 
@@ -380,36 +370,15 @@ async function projectListPage(req, res, next) {
     showGroupsAndEnterpriseBanner &&
     _.sample(['on-premise', 'FOMO', 'FOMO', 'FOMO'])
 
-  let showWritefullPromoBanner = false
-  if (Features.hasFeature('saas') && !req.session.justRegistered) {
-    try {
-      const { variant } = await SplitTestHandler.promises.getAssignment(
-        req,
-        res,
-        'writefull-promo-banner'
-      )
-      showWritefullPromoBanner = variant === 'enabled'
-    } catch (error) {
-      logger.warn(
-        { err: error },
-        'failed to get "writefull-promo-banner" split test assignment'
-      )
-    }
-  }
-
   let showInrGeoBanner = false
   let showBrlGeoBanner = false
   let showLATAMBanner = false
   let recommendedCurrency
 
-  if (usersBestSubscription?.type === 'free') {
-    const latamGeoPricingAssignment =
-      await SplitTestHandler.promises.getAssignment(
-        req,
-        res,
-        'geo-pricing-latam-v2'
-      )
-
+  if (
+    usersBestSubscription?.type === 'free' ||
+    usersBestSubscription?.type === 'standalone-ai-add-on'
+  ) {
     const { countryCode, currencyCode } =
       await GeoIpLookup.promises.getCurrencyCode(req.ip)
 
@@ -418,9 +387,7 @@ async function projectListPage(req, res, next) {
     }
     showBrlGeoBanner = countryCode === 'BR'
 
-    showLATAMBanner =
-      latamGeoPricingAssignment.variant === 'latam' &&
-      ['MX', 'CO', 'CL', 'PE'].includes(countryCode)
+    showLATAMBanner = ['MX', 'CO', 'CL', 'PE'].includes(countryCode)
     // LATAM Banner needs to know which currency to display
     if (showLATAMBanner) {
       recommendedCurrency = currencyCode
@@ -450,13 +417,13 @@ async function projectListPage(req, res, next) {
     )
   }
 
-  // Get the user's assignment for this page's Bootstrap 5 split test, which
+  // Get the user's assignment for the DS unified nav split test, which
   // populates splitTestVariants with a value for the split test name and allows
-  // Pug to read it
+  // Pug to send it to the browser
   await SplitTestHandler.promises.getAssignment(
     req,
     res,
-    'bootstrap-5-project-dashboard'
+    'sidebar-navigation-ui-update'
   )
 
   res.render('project/list-react', {
@@ -477,7 +444,6 @@ async function projectListPage(req, res, next) {
     groupsAndEnterpriseBannerVariant,
     showUSGovBanner,
     usGovBannerVariant,
-    showWritefullPromoBanner,
     showLATAMBanner,
     recommendedCurrency,
     showInrGeoBanner,
@@ -556,8 +522,14 @@ async function _getProjects(
  * @private
  */
 function _formatProjects(projects, userId) {
-  const { owned, readAndWrite, readOnly, tokenReadAndWrite, tokenReadOnly } =
-    projects
+  const {
+    owned,
+    review,
+    readAndWrite,
+    readOnly,
+    tokenReadAndWrite,
+    tokenReadOnly,
+  } = projects
 
   const formattedProjects = /** @type {Project[]} **/ []
   for (const project of owned) {
@@ -569,6 +541,11 @@ function _formatProjects(projects, userId) {
   for (const project of readAndWrite) {
     formattedProjects.push(
       _formatProjectInfo(project, 'readWrite', Sources.INVITE, userId)
+    )
+  }
+  for (const project of review) {
+    formattedProjects.push(
+      _formatProjectInfo(project, 'review', Sources.INVITE, userId)
     )
   }
   for (const project of readOnly) {

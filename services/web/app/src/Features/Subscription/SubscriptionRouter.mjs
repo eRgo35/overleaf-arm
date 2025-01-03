@@ -18,6 +18,14 @@ const subscriptionRateLimiter = new RateLimiter('subscription', {
   duration: 60,
 })
 
+const MAX_NUMBER_OF_USERS = 50
+
+const addSeatsValidateSchema = {
+  body: Joi.object({
+    adding: Joi.number().integer().min(1).max(MAX_NUMBER_OF_USERS).required(),
+  }),
+}
+
 export default {
   apply(webRouter, privateApiRouter, publicApiRouter) {
     if (!Settings.enableSubscriptions) {
@@ -25,30 +33,11 @@ export default {
     }
 
     webRouter.get(
-      '/user/subscription/plans',
-      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
-      SubscriptionController.plansPage
-    )
-
-    webRouter.get(
-      '/user/subscription/plans-3',
-      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
-      SubscriptionController.plansPageLightDesign
-    )
-
-    webRouter.get(
       '/user/subscription',
       AuthenticationController.requireLogin(),
       RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
       PermissionsController.useCapabilities(),
       SubscriptionController.userSubscriptionPage
-    )
-
-    webRouter.get(
-      '/user/subscription/choose-your-plan',
-      AuthenticationController.requireLogin(),
-      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
-      SubscriptionController.interstitialPaymentPage
     )
 
     webRouter.get(
@@ -78,6 +67,56 @@ export default {
       RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
       PermissionsController.requirePermission('leave-group-subscription'),
       SubscriptionGroupController.removeSelfFromGroup
+    )
+
+    webRouter.get(
+      '/user/subscription/group/add-users',
+      AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionGroupController.flexibleLicensingSplitTest,
+      SubscriptionGroupController.addSeatsToGroupSubscription
+    )
+
+    webRouter.post(
+      '/user/subscription/group/add-users/preview',
+      AuthenticationController.requireLogin(),
+      validate(addSeatsValidateSchema),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionGroupController.previewAddSeatsSubscriptionChange
+    )
+
+    webRouter.post(
+      '/user/subscription/group/add-users/create',
+      AuthenticationController.requireLogin(),
+      validate(addSeatsValidateSchema),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionGroupController.createAddSeatsSubscriptionChange
+    )
+
+    webRouter.post(
+      '/user/subscription/group/add-users/sales-contact-form',
+      validate({
+        body: Joi.object({
+          adding: Joi.number().integer().min(MAX_NUMBER_OF_USERS).required(),
+        }),
+      }),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionGroupController.submitForm
+    )
+
+    webRouter.get(
+      '/user/subscription/group/upgrade-subscription',
+      AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionGroupController.flexibleLicensingSplitTest,
+      SubscriptionGroupController.subscriptionUpgradePage
+    )
+
+    webRouter.post(
+      '/user/subscription/group/upgrade-subscription',
+      AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionGroupController.upgradeSubscription
     )
 
     // Team invites
@@ -114,6 +153,12 @@ export default {
     )
 
     // user changes their account state
+    webRouter.get(
+      '/user/subscription/preview',
+      AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionController.previewSubscription
+    )
     webRouter.post(
       '/user/subscription/update',
       AuthenticationController.requireLogin(),

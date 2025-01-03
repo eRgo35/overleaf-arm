@@ -10,11 +10,11 @@ import { ConfirmChangePlanModal } from './change-plan/modals/confirm-change-plan
 import { KeepCurrentPlanModal } from './change-plan/modals/keep-current-plan-modal'
 import { ChangeToGroupModal } from './change-plan/modals/change-to-group-modal'
 import { CancelAiAddOnModal } from './change-plan/modals/cancel-ai-add-on-modal'
+import { PendingRecurlyPlan } from '../../../../../../../../types/subscription/plan'
 import {
-  AI_STANDALONE_PLAN_CODE,
   ADD_ON_NAME,
-  AI_STANDALONE_PLAN_NAME,
-  AI_STANDALONE_ANNUAL_PLAN_CODE,
+  AI_ADD_ON_CODE,
+  isStandaloneAiPlanCode,
 } from '../../../../data/add-on-codes'
 import { CancelSubscriptionButton } from './cancel-subscription-button'
 
@@ -26,14 +26,35 @@ export function ActiveAiAddonSubscription({
   subscription: RecurlySubscription
 }) {
   const { t } = useTranslation()
-  const { recurlyLoadError, showCancellation, setModalIdShown } =
-    useSubscriptionDashboardContext()
+  const {
+    recurlyLoadError,
+    showCancellation,
+    setModalIdShown,
+    memberGroupSubscriptions,
+    institutionMemberships,
+  } = useSubscriptionDashboardContext()
   if (showCancellation) return <CancelSubscription />
 
-  const onStandalonePlan = [
-    AI_STANDALONE_PLAN_CODE,
-    AI_STANDALONE_ANNUAL_PLAN_CODE,
-  ].includes(subscription.planCode)
+  const onStandalonePlan = isStandaloneAiPlanCode(subscription.planCode)
+
+  let planName
+  if (onStandalonePlan) {
+    planName = 'Overleaf Free'
+    if (institutionMemberships && institutionMemberships.length > 0) {
+      planName = 'Overleaf Professional'
+    }
+    if (memberGroupSubscriptions.length > 0) {
+      if (
+        memberGroupSubscriptions.some(s => s.planLevelName === 'Professional')
+      ) {
+        planName = 'Overleaf Professional'
+      } else {
+        planName = 'Overleaf Standard'
+      }
+    }
+  } else {
+    planName = subscription.plan.name
+  }
 
   const handlePlanChange = () => setModalIdShown('change-plan')
 
@@ -44,11 +65,7 @@ export function ActiveAiAddonSubscription({
       <p className="mb-0">
         <Trans
           i18nKey="your_plan_is"
-          values={{
-            planName: onStandalonePlan
-              ? AI_STANDALONE_PLAN_NAME
-              : subscription.plan.name,
-          }}
+          values={{ planName }}
           shouldUnescape
           tOptions={{ interpolation: { escapeValue: true } }}
           components={{ strong: <strong /> }}
@@ -110,6 +127,7 @@ export function ActiveAiAddonSubscription({
             <PlanWithAddonsActions
               handlePlanChange={handlePlanChange}
               handleCancelClick={handleCancelClick}
+              subscription={subscription}
             />
           )}
         </p>
@@ -155,9 +173,8 @@ function StandaloneAiPlanActions({
       <OLButton variant="secondary" onClick={handlePlanChange}>
         {t('upgrade')}
       </OLButton>
-
       <OLButton variant="danger-ghost" onClick={handleCancelClick}>
-        {t('cancel_add_on')}
+        {t('remove_add_on')}
       </OLButton>
     </>
   )
@@ -166,11 +183,25 @@ function StandaloneAiPlanActions({
 function PlanWithAddonsActions({
   handlePlanChange,
   handleCancelClick,
+  subscription,
 }: {
   handlePlanChange(): void
   handleCancelClick(): void
+  subscription: RecurlySubscription
 }) {
   const { t } = useTranslation()
+
+  const pendingPlan = subscription.pendingPlan as PendingRecurlyPlan
+
+  const hasAiAddon = subscription.addOns?.some(
+    addOn => addOn.addOnCode === AI_ADD_ON_CODE
+  )
+
+  const pendingCancellation = Boolean(
+    hasAiAddon &&
+      pendingPlan &&
+      !pendingPlan.addOns?.some(addOn => addOn.add_on_code === AI_ADD_ON_CODE)
+  )
   return (
     <>
       <OLButton variant="secondary" onClick={handlePlanChange}>
@@ -178,9 +209,11 @@ function PlanWithAddonsActions({
       </OLButton>
 
       <>
-        <OLButton variant="danger-ghost" onClick={handleCancelClick}>
-          {t('remove_add_on')}
-        </OLButton>{' '}
+        {!pendingCancellation && (
+          <OLButton variant="danger-ghost" onClick={handleCancelClick}>
+            {t('remove_add_on')}
+          </OLButton>
+        )}
         <CancelSubscriptionButton />
       </>
     </>

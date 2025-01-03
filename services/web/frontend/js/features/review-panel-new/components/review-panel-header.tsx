@@ -6,6 +6,9 @@ import MaterialIcon from '@/shared/components/material-icon'
 import { useLayoutContext } from '@/shared/context/layout-context'
 import SplitTestBadge from '@/shared/components/split-test-badge'
 import { useTranslation } from 'react-i18next'
+import getMeta from '@/utils/meta'
+
+const isReviewerRoleEnabled = getMeta('ol-isReviewerRoleEnabled')
 
 const ReviewPanelHeader: FC = () => {
   const [trackChangesMenuExpanded, setTrackChangesMenuExpanded] =
@@ -25,6 +28,7 @@ const ReviewPanelHeader: FC = () => {
             />
           </span>
         </div>
+        {isReviewerRoleEnabled && <ReviewPanelResolvedThreadsButton />}
         <button
           type="button"
           className="btn review-panel-close-button"
@@ -33,13 +37,15 @@ const ReviewPanelHeader: FC = () => {
           <MaterialIcon type="close" />
         </button>
       </div>
-      <div className="review-panel-tools">
-        <ReviewPanelResolvedThreadsButton />
-        <ReviewPanelTrackChangesMenuButton
-          menuExpanded={trackChangesMenuExpanded}
-          setMenuExpanded={setTrackChangesMenuExpanded}
-        />
-      </div>
+      {!isReviewerRoleEnabled && (
+        <div className="review-panel-tools">
+          <ReviewPanelResolvedThreadsButton />
+          <ReviewPanelTrackChangesMenuButton
+            menuExpanded={trackChangesMenuExpanded}
+            setMenuExpanded={setTrackChangesMenuExpanded}
+          />
+        </div>
+      )}
 
       {trackChangesMenuExpanded && <ReviewPanelTrackChangesMenu />}
     </div>

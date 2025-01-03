@@ -26,6 +26,17 @@
 .toolbar-pdf-left {
   gap: var(--spacing-02);
 
+  .compile-button-group {
+    height: 28px;
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
+    background-color: var(--bg-accent-01);
+
+    .btn-primary:hover {
+      z-index: auto; // prevents border from being hidden
+    }
+  }
+
   .dropdown > .btn {
     border-top-left-radius: 0;
     border-bottom-left-radius: 0;
@@ -332,8 +343,16 @@
 }
 
 :fullscreen {
+  /* stylelint-disable selector-class-pattern */
+  .pdfViewer {
+    min-height: auto !important;
+  }
+
   .pdfjs-viewer-inner {
     overflow-y: hidden !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 
@@ -394,4 +413,12 @@
   max-height: calc(
     100vh - #{$toolbar-small-height + $toolbar-height + $spacing-11}
   );
+}
+
+.pdf-preview-messages {
+  position: absolute;
+  right: var(--spacing-06);
+  left: var(--spacing-06);
+  top: var(--spacing-10);
+  z-index: 1;
 }

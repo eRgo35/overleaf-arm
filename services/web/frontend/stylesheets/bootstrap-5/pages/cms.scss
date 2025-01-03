@@ -66,6 +66,17 @@
     }
   }
 
+  .linkable-list-container {
+    .row-with-id {
+      margin-top: var(--spacing-12);
+
+      h2:first-child {
+        // css specificity problem. this is more specific than header overrides below
+        margin-top: 0;
+      }
+    }
+  }
+
   // create .paragraphs-margin-spacing-00, .paragraphs-margin-spacing-01, .paragraphs-margin-spacing-02, .paragraphs-margin-spacing-03, .paragraphs-margin-spacing-04, .paragraphs-margin-spacing-05, .paragraphs-margin-spacing-06, .paragraphs-margin-spacing-07, .paragraphs-margin-spacing-08, .paragraphs-margin-spacing-09, .paragraphs-margin-spacing-10, .paragraphs-margin-spacing-11, .paragraphs-margin-spacing-12, .paragraphs-margin-spacing-13, .paragraphs-margin-spacing-14, .paragraphs-margin-spacing-15, .paragraphs-margin-spacing-16
   @each $spacing-option in $all-spacings {
     .paragraphs-margin-#{$spacing-option} {
@@ -84,7 +95,9 @@
       h4,
       h5,
       h6 {
-        margin-top: var(--#{$spacing-option});
+        margin-top: var(
+          --#{$spacing-option}
+        ) !important; // needed for :first-child specificity
       }
     }
   }
@@ -100,6 +113,32 @@
       h6 {
         margin-bottom: var(--#{$spacing-option});
       }
+    }
+  }
+
+  @each $spacing-option in $all-spacings {
+    // create .padding-top-spacing-00, .padding-top-spacing-01, .padding-top-spacing-02, .padding-top-spacing-03, .padding-top-spacing-04, .padding-top-spacing-05, .padding-top-spacing-06, .padding-top-spacing-07, .padding-top-spacing-08, .padding-top-spacing-09, .padding-top-spacing-10, .padding-top-spacing-11, .padding-top-spacing-12, .padding-top-spacing-13, .padding-top-spacing-14, .padding-top-spacing-15, .padding-top-spacing-16
+    .padding-top-#{$spacing-option} {
+      padding-top: var(--#{$spacing-option});
+    }
+  }
+
+  @each $spacing-option in $all-spacings {
+    // create .padding-bottom-spacing-00, .padding-bottom-spacing-01, .padding-bottom-spacing-02, .padding-bottom-spacing-03, .padding-bottom-spacing-04, .padding-bottom-spacing-05, .padding-bottom-spacing-06, .padding-bottom-spacing-07, .padding-bottom-spacing-08, .padding-bottom-spacing-09, .padding-bottom-spacing-10, .padding-bottom-spacing-11, .padding-bottom-spacing-12, .padding-bottom-spacing-13, .padding-bottom-spacing-14, .padding-bottom-spacing-15, .padding-bottom-spacing-16
+    .padding-bottom-#{$spacing-option} {
+      padding-bottom: var(--#{$spacing-option});
+    }
+  }
+
+  .font-color-green-bright {
+    p,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+      color: var(--green-bright);
     }
   }
 
@@ -471,6 +510,47 @@
       }
     }
   }
+
+  .table-of-contents {
+    --link-color: var(--neutral-70);
+    --link-visited-color: var(--neutral-70);
+
+    border-top: 1px solid var(--neutral-30);
+    border-bottom: 1px solid var(--neutral-30);
+    padding: var(--spacing-09) 0;
+    margin-right: var(--spacing-13);
+
+    h2 {
+      @include heading-xs;
+
+      color: var(--green-60);
+      margin: 0;
+      margin-bottom: var(--spacing-06);
+    }
+
+    ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+
+      li {
+        margin-top: var(--spacing-06);
+      }
+
+      li:first-child {
+        margin-top: 0;
+      }
+    }
+
+    a {
+      text-decoration: none;
+      font-weight: 500;
+
+      &:hover {
+        text-decoration: none !important;
+      }
+    }
+  }
 }
 
 .icon-with-content {
@@ -505,6 +585,12 @@
       font-size: 21px;
     }
   }
+}
+
+.visual-with-content {
+  display: flex;
+  gap: var(--spacing-06);
+  align-items: flex-start;
 }
 
 .svg-arrow-icon {
@@ -547,12 +633,16 @@
 
 .row-within-card {
   .no-card {
-    > :first-child {
-      margin-top: 0;
+    div:first-child {
+      > :first-child {
+        margin-top: 0;
+      }
     }
 
-    > :last-child {
-      margin-bottom: 0;
+    div:last-child {
+      > :last-child {
+        margin-bottom: 0;
+      }
     }
   }
 }
@@ -588,100 +678,43 @@
   padding-bottom: var(--spacing-08);
 }
 
-.row-top-padding-sm {
-  padding-top: var(--spacing-05);
-}
-
-.row-top-padding-md {
-  padding-top: var(--spacing-07);
-}
-
-.row-top-padding-lg {
-  padding-top: var(--spacing-09);
-}
-
-.row-top-padding-xl {
-  padding-top: var(--spacing-10);
-}
-
-.row-top-padding-xxl {
-  padding-top: var(--spacing-11);
-}
-
-.row-bottom-padding-sm {
-  padding-bottom: var(--spacing-05);
-}
-
-.row-bottom-padding-md {
-  padding-bottom: var(--spacing-07);
-}
-
-.row-bottom-padding-lg {
-  padding-bottom: var(--spacing-09);
-}
-
-.row-bottom-padding-xl {
-  padding-bottom: var(--spacing-10);
-}
-
-.row-bottom-padding-xxl {
-  padding-bottom: var(--spacing-11);
-}
-
 // Desktop layout options depdendent on mobile breakpoint
 @include media-breakpoint-up(lg) {
   .row-equal-column-heights > div[class*='col-'] > .card,
-  .no-card {
+  .row-equal-column-heights > div[class*='col-'] > .no-card {
     height: 100%;
   }
 
-  .section-row {
-    &.section-row-max-800 {
+  .row {
+    &.row-max-800 {
       max-width: 800px !important;
+      margin-left: auto;
+      margin-right: auto;
     }
 
-    &.section-row-max-900 {
+    &.row-max-900 {
       max-width: 900px !important;
+      margin-left: auto;
+      margin-right: auto;
     }
 
-    &.section-row-max-1000 {
+    &.row-max-1000 {
       max-width: 1000px !important;
+      margin-left: auto;
+      margin-right: auto;
     }
 
-    &.section-row-max-unset {
+    &.row-max-unset {
       max-width: unset !important;
+      margin-left: auto;
+      margin-right: auto;
     }
+  }
 
-    &.section-row-gap-spacing-16 {
-      @include section-row-custom-gap(calc(var(--spacing-16) / 2));
-    }
-
-    &.section-row-gap-spacing-15 {
-      @include section-row-custom-gap(calc(var(--spacing-15) / 2));
-    }
-
-    &.section-row-gap-spacing-14 {
-      @include section-row-custom-gap(calc(var(--spacing-14) / 2));
-    }
-
-    &.section-row-gap-spacing-13 {
-      @include section-row-custom-gap(calc(var(--spacing-13) / 2));
-    }
-
-    &.section-row-gap-spacing-12 {
-      @include section-row-custom-gap(calc(var(--spacing-12) / 2));
-    }
-
-    &.section-row-gap-spacing-11 {
-      @include section-row-custom-gap(calc(var(--spacing-11) / 2));
-    }
-
-    &.section-row-gap-spacing-10 {
-      @include section-row-custom-gap(calc(var(--spacing-10) / 2));
-    }
-
-    &.section-row-gap-spacing-09 {
-      @include section-row-custom-gap(calc(var(--spacing-09) / 2));
+  // create .row-gap-spacing-00, .row-gap-spacing-01, .row-gap-spacing-02, .row-gap-spacing-03, .row-gap-spacing-04, .row-gap-spacing-05, .row-gap-spacing-06, .row-gap-spacing-07, .row-gap-spacing-08, .row-gap-spacing-09, .row-gap-spacing-10, .row-gap-spacing-11, .row-gap-spacing-12, .row-gap-spacing-13, .row-gap-spacing-14, .row-gap-spacing-15, .row-gap-spacing-16
+  @each $spacing-option in $all-spacings {
+    .row-gap-#{$spacing-option} {
+      @include section-row-custom-gap(calc(var(--#{$spacing-option}) / 2));
     }
   }
 }
@@ -697,37 +730,10 @@
       flex-direction: column-reverse;
     }
 
-    .section-row {
-      &.section-row-mobile-gap-spacing-16 {
-        @include section-row-custom-gap(calc(var(--spacing-16) / 2));
-      }
-
-      &.section-row-mobile-gap-spacing-15 {
-        @include section-row-custom-gap(calc(var(--spacing-15) / 2));
-      }
-
-      &.section-row-mobile-gap-spacing-14 {
-        @include section-row-custom-gap(calc(var(--spacing-14) / 2));
-      }
-
-      &.section-row-mobile-gap-spacing-13 {
-        @include section-row-custom-gap(calc(var(--spacing-13) / 2));
-      }
-
-      &.section-row-mobile-gap-spacing-12 {
-        @include section-row-custom-gap(calc(var(--spacing-12) / 2));
-      }
-
-      &.section-row-mobile-gap-spacing-11 {
-        @include section-row-custom-gap(calc(var(--spacing-11) / 2));
-      }
-
-      &.section-row-mobile-gap-spacing-10 {
-        @include section-row-custom-gap(calc(var(--spacing-10) / 2));
-      }
-
-      &.section-row-mobile-gap-spacing-09 {
-        @include section-row-custom-gap(calc(var(--spacing-09) / 2));
+    // create .row-mobile-gap-spacing-00, .row-mobile-gap-spacing-01, .row-mobile-gap-spacing-02, .row-mobile-gap-spacing-03, .row-mobile-gap-spacing-04, .row-mobile-gap-spacing-05, .row-mobile-gap-spacing-06, .row-mobile-gap-spacing-07, .row-mobile-gap-spacing-08, .row-mobile-gap-spacing-09, .row-mobile-gap-spacing-10, .row-mobile-gap-spacing-11, .row-mobile-gap-spacing-12, .row-mobile-gap-spacing-13, .row-mobile-gap-spacing-14, .row-mobile-gap-spacing-15, .row-mobile-gap-spacing-16
+    @each $spacing-option in $all-spacings {
+      .row-mobile-gap-#{$spacing-option} {
+        @include section-row-custom-gap(calc(var(--#{$spacing-option}) / 2));
       }
     }
   }

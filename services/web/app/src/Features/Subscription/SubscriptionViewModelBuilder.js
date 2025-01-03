@@ -2,6 +2,7 @@
 const Settings = require('@overleaf/settings')
 const RecurlyWrapper = require('./RecurlyWrapper')
 const PlansLocator = require('./PlansLocator')
+const { isStandaloneAiAddOnPlanCode } = require('./RecurlyEntities')
 const SubscriptionFormatters = require('./SubscriptionFormatters')
 const SubscriptionLocator = require('./SubscriptionLocator')
 const SubscriptionUpdater = require('./SubscriptionUpdater')
@@ -419,16 +420,25 @@ async function getBestSubscription(user) {
     }
   }
   if (individualSubscription && !individualSubscription.groupPlan) {
-    const plan = PlansLocator.findLocalPlanInSettings(
-      individualSubscription.planCode
-    )
-    if (_isPlanEqualOrBetter(plan, bestSubscription.plan)) {
-      const remainingTrialDays = _getRemainingTrialDays(individualSubscription)
-      bestSubscription = {
-        type: 'individual',
-        subscription: individualSubscription,
-        plan,
-        remainingTrialDays,
+    if (
+      isStandaloneAiAddOnPlanCode(individualSubscription.planCode) &&
+      bestSubscription.type === 'free'
+    ) {
+      bestSubscription = { type: 'standalone-ai-add-on' }
+    } else {
+      const plan = PlansLocator.findLocalPlanInSettings(
+        individualSubscription.planCode
+      )
+      if (_isPlanEqualOrBetter(plan, bestSubscription.plan)) {
+        const remainingTrialDays = _getRemainingTrialDays(
+          individualSubscription
+        )
+        bestSubscription = {
+          type: 'individual',
+          subscription: individualSubscription,
+          plan,
+          remainingTrialDays,
+        }
       }
     }
   }

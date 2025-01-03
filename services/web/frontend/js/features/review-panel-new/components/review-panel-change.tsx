@@ -95,9 +95,7 @@ export const ReviewPanelChange = memo<{
         >
           <div className="review-panel-entry-header">
             <div>
-              <div className="review-panel-entry-user">
-                <ReviewPanelChangeUser change={change} />
-              </div>
+              <ReviewPanelChangeUser change={change} />
               <div className="review-panel-entry-time">
                 {formatTimeBasedOnYear(change.metadata?.ts)}
               </div>
@@ -110,7 +108,12 @@ export const ReviewPanelChange = memo<{
                   description={t('accept_change')}
                   tooltipProps={{ className: 'review-panel-tooltip' }}
                 >
-                  <button type="button" className="btn" onClick={acceptHandler}>
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={acceptHandler}
+                    tabIndex={0}
+                  >
                     <MaterialIcon
                       type="check"
                       className="review-panel-entry-actions-icon"
@@ -126,6 +129,7 @@ export const ReviewPanelChange = memo<{
                   tooltipProps={{ className: 'review-panel-tooltip' }}
                 >
                   <button
+                    tabIndex={0}
                     type="button"
                     className="btn"
                     onClick={() =>

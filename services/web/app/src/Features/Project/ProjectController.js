@@ -37,6 +37,7 @@ const FeaturesUpdater = require('../Subscription/FeaturesUpdater')
 const SpellingHandler = require('../Spelling/SpellingHandler')
 const { hasAdminAccess } = require('../Helpers/AdminAuthorizationHelper')
 const InstitutionsFeatures = require('../Institutions/InstitutionsFeatures')
+const InstitutionsGetter = require('../Institutions/InstitutionsGetter')
 const ProjectAuditLogHandler = require('./ProjectAuditLogHandler')
 const PublicAccessLevels = require('../Authorization/PublicAccessLevels')
 const TagsHandler = require('../Tags/TagsHandler')
@@ -45,6 +46,9 @@ const OnboardingDataCollectionManager = require('../OnboardingDataCollection/Onb
 const UserUpdater = require('../User/UserUpdater')
 const Modules = require('../../infrastructure/Modules')
 const UserGetter = require('../User/UserGetter')
+const {
+  isStandaloneAiAddOnPlanCode,
+} = require('../Subscription/RecurlyEntities')
 
 /**
  * @import { GetProjectsRequest, GetProjectsResponse, Project } from "./types"
@@ -343,14 +347,13 @@ const _ProjectController = {
       !anonymous && 'ro-mirror-on-client',
       'track-pdf-download',
       !anonymous && 'writefull-oauth-promotion',
-      'ieee-stylesheet',
       'write-and-cite',
       'write-and-cite-ars',
       'default-visual-for-beginners',
       'hotjar',
-      'spell-check-client',
-      'spell-check-no-server',
       'ai-add-on',
+      'reviewer-role',
+      'papers-integration',
     ].filter(Boolean)
 
     const getUserValues = async userId =>
@@ -378,6 +381,12 @@ const _ProjectController = {
           ),
           userHasInstitutionLicence: InstitutionsFeatures.promises
             .hasLicence(userId)
+            .catch(err => {
+              logger.error({ err, userId }, 'failed to get institution licence')
+              return false
+            }),
+          affiliations: InstitutionsGetter.promises
+            .getCurrentAffiliations(userId)
             .catch(err => {
               logger.error({ err, userId }, 'failed to get institution licence')
               return false
@@ -424,6 +433,7 @@ const _ProjectController = {
           tokenAccessReadAndWrite_refs: 1, // used for link sharing analytics
           collaberator_refs: 1, // used for link sharing analytics
           pendingEditor_refs: 1, // used for link sharing analytics
+          reviewer_refs: 1,
         }),
         userIsMemberOfGroupSubscription: sessionUser
           ? (async () =>
@@ -515,15 +525,13 @@ const _ProjectController = {
         }
       }
 
-      let allowedFreeTrial = true
-
       if (privilegeLevel == null || privilegeLevel === PrivilegeLevels.NONE) {
         return res.sendStatus(401)
       }
 
-      if (subscription != null) {
-        allowedFreeTrial = false
-      }
+      const allowedFreeTrial =
+        subscription == null ||
+        isStandaloneAiAddOnPlanCode(subscription.planCode)
 
       let wsUrl = Settings.wsUrl
       let metricName = 'load-editor-ws'
@@ -614,12 +622,15 @@ const _ProjectController = {
       const userInNonIndividualSub =
         userIsMemberOfGroupSubscription || userHasInstitutionLicence
 
+      const userHasPremiumSub =
+        subscription && !isStandaloneAiAddOnPlanCode(subscription.planCode)
+
       // Persistent upgrade prompts
       // in header & in share project modal
       const showUpgradePrompt =
         Features.hasFeature('saas') &&
         userId &&
-        !subscription &&
+        !userHasPremiumSub &&
         !userInNonIndividualSub
 
       let aiFeaturesAllowed = false
@@ -649,9 +660,13 @@ const _ProjectController = {
           aiFeaturesAllowed = false
         }
       }
+
+      const hasNonRecurlySubscription =
+        subscription && !subscription.recurlySubscription_id
       const canUseErrorAssistant =
         user.features?.aiErrorAssistant ||
-        splitTestAssignments['ai-add-on']?.variant === 'enabled'
+        (splitTestAssignments['ai-add-on']?.variant === 'enabled' &&
+          !hasNonRecurlySubscription)
 
       let featureUsage = {}
 
@@ -665,13 +680,21 @@ const _ProjectController = {
         })
       }
 
+      let inEnterpriseCommons = false
+      const affiliations = userValues.affiliations || []
+      for (const affiliation of affiliations) {
+        inEnterpriseCommons =
+          inEnterpriseCommons || affiliation.institution?.enterpriseCommons
+      }
+
       // check if a user has never tried writefull before (writefull.enabled will be null)
       //  if they previously accepted writefull, or are have been already assigned to a trial, user.writefull will be true,
       //  if they explicitly disabled it, user.writefull will be false
       if (
         aiFeaturesAllowed &&
         user.writefull?.enabled === null &&
-        !userInNonIndividualSub
+        !userIsMemberOfGroupSubscription &&
+        !inEnterpriseCommons
       ) {
         const { variant } = await SplitTestHandler.promises.getAssignment(
           req,
@@ -729,6 +752,7 @@ const _ProjectController = {
           referal_id: user.referal_id,
           signUpDate: user.signUpDate,
           allowedFreeTrial,
+          hasRecurlySubscription: subscription?.recurlySubscription_id != null,
           featureSwitches: user.featureSwitches,
           features: user.features,
           featureUsage,
@@ -802,6 +826,11 @@ const _ProjectController = {
             ? usedLatex
             : null,
         isSaas: Features.hasFeature('saas'),
+        shouldLoadHotjar: splitTestAssignments.hotjar?.variant === 'enabled',
+        isReviewerRoleEnabled:
+          (privilegeLevel === PrivilegeLevels.OWNER &&
+            splitTestAssignments['reviewer-role']?.variant === 'enabled') ||
+          Object.keys(project.reviewer_refs || {}).length > 0,
       })
       timer.done()
     } catch (err) {
@@ -872,8 +901,14 @@ const _ProjectController = {
   },
   _buildProjectList(allProjects, userId) {
     let project
-    const { owned, readAndWrite, readOnly, tokenReadAndWrite, tokenReadOnly } =
-      allProjects
+    const {
+      owned,
+      review,
+      readAndWrite,
+      readOnly,
+      tokenReadAndWrite,
+      tokenReadOnly,
+    } = allProjects
     const projects = []
     for (project of owned) {
       projects.push(
@@ -891,6 +926,16 @@ const _ProjectController = {
         ProjectController._buildProjectViewModel(
           project,
           'readWrite',
+          Sources.INVITE,
+          userId
+        )
+      )
+    }
+    for (project of review) {
+      projects.push(
+        ProjectController._buildProjectViewModel(
+          project,
+          'review',
           Sources.INVITE,
           userId
         )

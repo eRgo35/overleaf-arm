@@ -6,6 +6,7 @@ import metrics from '@overleaf/metrics'
 import Settings from '@overleaf/settings'
 import logger from '@overleaf/logger'
 import PlansLocator from './app/src/Features/Subscription/PlansLocator.js'
+import HistoryManager from './app/src/Features/History/HistoryManager.js'
 import SiteAdminHandler from './app/src/infrastructure/SiteAdminHandler.js'
 import http from 'node:http'
 import https from 'node:https'
@@ -23,10 +24,9 @@ logger.logger.serializers.user = Serializers.user
 logger.logger.serializers.docs = Serializers.docs
 logger.logger.serializers.files = Serializers.files
 logger.logger.serializers.project = Serializers.project
-if (Settings.sentry?.dsn != null) {
-  logger.initializeErrorReporting(Settings.sentry.dsn)
-}
+http.globalAgent.keepAlive = false
 http.globalAgent.maxSockets = Settings.limits.httpGlobalAgentMaxSockets
+https.globalAgent.keepAlive = false
 https.globalAgent.maxSockets = Settings.limits.httpsGlobalAgentMaxSockets
 
 metrics.memory.monitor(logger)
@@ -59,7 +59,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 
   PlansLocator.ensurePlansAreSetupCorrectly()
 
-  Promise.all([mongodb.connectionPromise, mongoose.connectionPromise])
+  Promise.all([
+    mongodb.connectionPromise,
+    mongoose.connectionPromise,
+    HistoryManager.promises.loadGlobalBlobs(),
+  ])
     .then(async () => {
       Server.server.listen(port, host, function () {
         logger.debug(`web starting up, listening on ${host}:${port}`)
@@ -77,7 +81,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 }
 
 // initialise site admin tasks
-Promise.all([mongodb.connectionPromise, mongoose.connectionPromise])
+Promise.all([
+  mongodb.connectionPromise,
+  mongoose.connectionPromise,
+  HistoryManager.promises.loadGlobalBlobs(),
+])
   .then(() => SiteAdminHandler.initialise())
   .catch(err => {
     logger.fatal({ err }, 'Cannot connect to mongo. Exiting.')

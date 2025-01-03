@@ -320,8 +320,15 @@
 }
 
 :fullscreen {
+  .pdfViewer {
+    min-height: auto !important;
+  }
+
   .pdfjs-viewer-inner {
     overflow-y: hidden !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }
 
@@ -544,11 +551,4 @@
     ~'100vh - ' @editor-and-logs-pane-toolbars-height ~' - ' @btn-small-height ~' - '
       @margin-md
   );
-}
-
-.btn-secondary-compile-timeout-override {
-  color: #1b222c;
-  background-color: #ffffff;
-  border-color: #677283;
-  border-width: 1px;
 }

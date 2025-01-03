@@ -43,12 +43,14 @@ export const EditorContext = createContext<
       isProjectOwner: boolean
       isRestrictedTokenMember?: boolean
       isPendingEditor: boolean
-      permissionsLevel: 'readOnly' | 'readAndWrite' | 'owner'
+      permissionsLevel: PermissionsLevel
       deactivateTutorial: (tutorial: string) => void
       inactiveTutorials: string[]
       currentPopup: string | null
       setCurrentPopup: Dispatch<SetStateAction<string | null>>
       setOutOfSync: (value: boolean) => void
+      assistantUpgraded: boolean
+      setAssistantUpgraded: (value: boolean) => void
       hasPremiumSuggestion: boolean
       setHasPremiumSuggestion: (value: boolean) => void
       setPremiumSuggestionResetDate: (date: Date) => void
@@ -95,6 +97,7 @@ export const EditorProvider: FC = ({ children }) => {
   )
 
   const [currentPopup, setCurrentPopup] = useState<string | null>(null)
+  const [assistantUpgraded, setAssistantUpgraded] = useState(false)
   const [hasPremiumSuggestion, setHasPremiumSuggestion] = useState<boolean>(
     () => {
       return Boolean(
@@ -205,6 +208,8 @@ export const EditorProvider: FC = ({ children }) => {
       setHasPremiumSuggestion,
       premiumSuggestionResetDate,
       setPremiumSuggestionResetDate,
+      assistantUpgraded,
+      setAssistantUpgraded,
     }),
     [
       cobranding,
@@ -229,6 +234,8 @@ export const EditorProvider: FC = ({ children }) => {
       setHasPremiumSuggestion,
       premiumSuggestionResetDate,
       setPremiumSuggestionResetDate,
+      assistantUpgraded,
+      setAssistantUpgraded,
     ]
   )
 

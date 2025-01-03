@@ -52,6 +52,7 @@ services:
       NODE_OPTIONS: "--unhandled-rejections=strict"
       ENABLE_CONVERSIONS: "true"
       USE_PROM_METRICS: "true"
+      AWS_S3_USER_FILES_STORAGE_CLASS: REDUCED_REDUNDANCY
       AWS_S3_USER_FILES_BUCKET_NAME: fake-user-files
       AWS_S3_USER_FILES_DEK_BUCKET_NAME: fake-user-files-dek
       AWS_S3_TEMPLATE_FILES_BUCKET_NAME: fake-template-files
@@ -70,7 +71,7 @@ services:
     command: npm run --silent test:acceptance
 
   certs:
-    image: node:18.20.4
+    image: node:20.18.0
     volumes:
       - ./test/acceptance/certs:/certs
     working_dir: /certs
@@ -119,7 +120,6 @@ services:
         mc alias set s3 https://minio:9000 MINIO_ROOT_USER MINIO_ROOT_PASSWORD \
         || sleep 3 && \
         mc alias set s3 https://minio:9000 MINIO_ROOT_USER MINIO_ROOT_PASSWORD
-
         mc mb --ignore-existing s3/fake-user-files
         mc mb --ignore-existing s3/fake-user-files-dek
         mc mb --ignore-existing s3/fake-template-files

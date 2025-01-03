@@ -29,6 +29,7 @@ import {
   Dropdown as BS3Dropdown,
   MenuItem as BS3MenuItem,
 } from 'react-bootstrap'
+import BetaBadgeIcon from '@/shared/components/beta-badge-icon'
 
 const MathPreviewTooltipContainer: FC = () => {
   const state = useCodeMirrorStateContext()
@@ -112,27 +113,23 @@ const MathPreviewTooltip: FC<{ mathContent: HTMLDivElement }> = ({
                 />
               </DropdownToggle>
               <DropdownMenu flip={false}>
-                <li>
-                  <OLDropdownMenuItem
-                    onClick={onHide}
-                    description={t('temporarily_hides_the_preview')}
-                    trailingIcon={
-                      <span className="math-tooltip-options-keyboard-shortcut">
-                        Esc
-                      </span>
-                    }
-                  >
-                    {t('hide')}
-                  </OLDropdownMenuItem>
-                </li>
-                <li>
-                  <OLDropdownMenuItem
-                    onClick={openDisableModal}
-                    description={t('permanently_disables_the_preview')}
-                  >
-                    {t('disable')}
-                  </OLDropdownMenuItem>
-                </li>
+                <OLDropdownMenuItem
+                  onClick={onHide}
+                  description={t('temporarily_hides_the_preview')}
+                  trailingIcon={
+                    <span className="math-tooltip-options-keyboard-shortcut">
+                      Esc
+                    </span>
+                  }
+                >
+                  {t('hide')}
+                </OLDropdownMenuItem>
+                <OLDropdownMenuItem
+                  onClick={openDisableModal}
+                  description={t('permanently_disables_the_preview')}
+                >
+                  {t('disable')}
+                </OLDropdownMenuItem>
               </DropdownMenu>
             </Dropdown>
           }
@@ -223,10 +220,7 @@ const CustomSplitTestBadge: FC = () => {
       target="_blank"
       rel="noopener noreferrer"
     >
-      <BootstrapVersionSwitcher
-        bs3={<span className="badge beta-badge" />}
-        bs5={<MaterialIcon type="info" className="align-middle beta-badge" />}
-      />
+      <BetaBadgeIcon phase="beta" />
     </a>
   )
 }

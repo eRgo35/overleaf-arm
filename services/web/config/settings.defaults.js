@@ -225,10 +225,6 @@ module.exports = {
         '127.0.0.1'
       }:3003`,
     },
-    spelling: {
-      url: `http://${process.env.SPELLING_HOST || '127.0.0.1'}:3005`,
-      host: process.env.SPELLING_HOST,
-    },
     docstore: {
       url: `http://${process.env.DOCSTORE_HOST || '127.0.0.1'}:3016`,
       pubUrl: `http://${process.env.DOCSTORE_HOST || '127.0.0.1'}:3016`,
@@ -249,6 +245,12 @@ module.exports = {
     project_history: {
       sendProjectStructureOps: true,
       url: `http://${process.env.PROJECT_HISTORY_HOST || '127.0.0.1'}:3054`,
+    },
+    historyBackupDeletion: {
+      enabled: false,
+      url: `http://${process.env.HISTORY_BACKUP_DELETION_HOST || '127.0.0.1'}:3101`,
+      user: process.env.HISTORY_BACKUP_DELETION_USER || 'staging',
+      pass: process.env.HISTORY_BACKUP_DELETION_PASS,
     },
     realTime: {
       url: `http://${process.env.REALTIME_HOST || '127.0.0.1'}:3026`,
@@ -272,6 +274,23 @@ module.exports = {
       url:
         process.env.HAVE_I_BEEN_PWNED_URL || 'https://api.pwnedpasswords.com',
       timeout: parseInt(process.env.HAVE_I_BEEN_PWNED_TIMEOUT, 10) || 5 * 1000,
+    },
+    v1_history: {
+      url:
+        process.env.V1_HISTORY_URL ||
+        `http://${process.env.V1_HISTORY_HOST || '127.0.0.1'}:${
+          process.env.V1_HISTORY_PORT || '3100'
+        }/api`,
+      user: process.env.V1_HISTORY_USER || 'staging',
+      pass:
+        process.env.V1_HISTORY_PASS ||
+        process.env.V1_HISTORY_PASSWORD ||
+        'password',
+
+      buckets: {
+        globalBlobs: process.env.OVERLEAF_EDITOR_BLOBS_BUCKET,
+        projectBlobs: process.env.OVERLEAF_EDITOR_PROJECT_BLOBS_BUCKET,
+      },
     },
 
     // For legacy reasons, we need to populate the below objects.
@@ -953,7 +972,6 @@ module.exports = {
     editorLeftMenuManageTemplate: [],
     oauth2Server: [],
     managedGroupSubscriptionEnrollmentNotification: [],
-    userNotifications: [],
     managedGroupEnrollmentInvite: [],
     ssoCertificateInfo: [],
     v1ImportDataScreen: [],
