@@ -27,11 +27,11 @@ jobs:
           with:
             context: .
             file: server-ce/Dockerfile-base
-            platforms: linux/arm64,linux/amd64
+            platforms: linux/amd64
             push: true
             tags: |
               ghcr.io/${{ github.repository_owner }}/overleaf-arm-base:latest
-            cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/overleaf-arm-base:latest
+            cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/overleaf-amd-base:latest
             cache-to: type=inline
     
         - name: Build and push Overleaf ARM
@@ -39,9 +39,9 @@ jobs:
           with:
             context: .
             file: server-ce/Dockerfile
-            platforms: linux/arm64,linux/amd64
+            platforms: linux/amd64
             push: true
             tags: |
               ghcr.io/${{ github.repository_owner }}/overleaf-arm:latest
-            cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/overleaf-arm:latest
+            cache-from: type=registry,ref=ghcr.io/${{ github.repository_owner }}/overleaf-amd:latest
             cache-to: type=inline
