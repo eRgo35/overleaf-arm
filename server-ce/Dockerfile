@@ -104,9 +104,10 @@ ENV OVERLEAF_APP_NAME="Overleaf Community Edition"
 ENV OPTIMISE_PDF="true"
 
 # Marketing
-ENV OVERLEAF_LEFT_FOOTER = "[{'text': '<a href=\'https://github.com/tgmstudios/overleaf-arm\'>Overleaf for ARM</a>'},{'text': '<strong class=\'text-muted\'>|</strong>'},{'text': 'Developed by <a href=\'https://tgm.one\'>TGM</a>'}]"
+ENV OVERLEAF_LEFT_FOOTER = [{"text": "Overleaf for ARM"},{"text": "|"},{"text": "Developed by TGM"}]
+#ENV OVERLEAF_LEFT_FOOTER = [{'text': '<a href=\'https://github.com/tgmstudios/overleaf-arm\'>Overleaf for ARM</a>'},{'text': '<strong class=\'text-muted\'>|</strong>'},{'text': 'Developed by <a href=\'https://tgm.one\'>TGM</a>'}]
 
-ENV OVERLEAF_RIGHT_FOOTER = "[{'text': 'Copyright © CCSO 2024 - All rights reserved'} ]"
+ENV OVERLEAF_RIGHT_FOOTER = '[{"text": "Copyright © CCSO 2024 - All rights reserved"} ]'
 ENV OVERLEAF_IS_SERVER_PRO = "true"
 
 # Phusion Image timeouts before sending SIGKILL to processes
