@@ -8,7 +8,7 @@ import mongodb from 'mongodb-legacy'
 
 const { ObjectId } = mongodb
 
-let FETCH_LIMIT, COMMIT, VERBOSE
+let BATCH_SIZE, COMMIT, VERBOSE
 
 async function main() {
   console.log('## Syncing group subscription memberships...')
@@ -29,18 +29,25 @@ async function main() {
 }
 
 async function checkActiveSubscriptions() {
-  let totalSubscriptionsChecked = 0
   let subscriptions
   const processedSubscriptionIds = new Set()
+
+  const cursor = Subscription.find(
+    { groupPlan: true },
+    { recurlySubscription_id: 1, member_ids: 1 }
+  )
+    .sort('_id')
+    .cursor()
+
   do {
-    subscriptions = await Subscription.find(
-      { groupPlan: true },
-      { recurlySubscription_id: 1, member_ids: 1 }
-    )
-      .sort('_id')
-      .skip(totalSubscriptionsChecked)
-      .limit(FETCH_LIMIT)
-      .lean()
+    subscriptions = []
+    while (subscriptions.length <= BATCH_SIZE) {
+      const next = await cursor.next()
+      if (!next) {
+        break
+      }
+      subscriptions.push(next)
+    }
 
     if (subscriptions.length) {
       const groupIds = subscriptions.map(sub => sub._id)
@@ -61,25 +68,28 @@ async function checkActiveSubscriptions() {
           processedSubscriptionIds.add(subscriptionId)
         }
       }
-      totalSubscriptionsChecked += subscriptions.length
     }
   } while (subscriptions.length > 0)
 }
 
 async function checkDeletedSubscriptions() {
-  let totalDeletedSubscriptionsChecked = 0
   let deletedSubscriptions
   const processedSubscriptionIds = new Set()
+
+  const cursor = DeletedSubscription.find(
+    { 'subscription.groupPlan': true },
+    { subscription: 1 }
+  ).cursor()
+
   do {
-    deletedSubscriptions = (
-      await DeletedSubscription.find(
-        { 'subscription.groupPlan': true },
-        { subscription: 1 }
-      )
-        .sort('deletedAt')
-        .skip(totalDeletedSubscriptionsChecked)
-        .limit(FETCH_LIMIT)
-    ).map(sub => sub.toObject().subscription)
+    deletedSubscriptions = []
+    while (deletedSubscriptions.length <= BATCH_SIZE) {
+      const next = await cursor.next()
+      if (!next) {
+        break
+      }
+      deletedSubscriptions.push(next.toObject().subscription)
+    }
 
     if (deletedSubscriptions.length) {
       const groupIds = deletedSubscriptions.map(sub => sub._id.toString())
@@ -101,7 +111,6 @@ async function checkDeletedSubscriptions() {
           processedSubscriptionIds.add(subscriptionId)
         }
       }
-      totalDeletedSubscriptionsChecked += deletedSubscriptions.length
     }
   } while (deletedSubscriptions.length > 0)
 }
@@ -218,8 +227,11 @@ async function sendCorrectiveEvent(userId, event, subscription) {
   }
 }
 
+/**
+ * @param {Array<ObjectId>} groupIds
+ * @return {Promise<*>}
+ */
 async function fetchBigQueryMembershipStatuses(groupIds) {
-  const joinedGroupIds = groupIds.map(id => `"${id}"`).join(',')
   const query = `\
     WITH user_memberships AS (
       SELECT
@@ -227,9 +239,9 @@ async function fetchBigQueryMembershipStatuses(groupIds) {
         COALESCE(user_aliases.user_id, ugm.user_id) AS user_id,
         is_member,
         ugm.created_at
-      FROM analytics.user_group_memberships ugm
-      LEFT JOIN analytics.user_aliases ON ugm.user_id = user_aliases.analytics_id
-      WHERE ugm.group_id IN (${joinedGroupIds})
+      FROM INT_user_group_memberships ugm
+      LEFT JOIN INT_user_aliases user_aliases ON ugm.user_id = user_aliases.analytics_id
+      WHERE ugm.group_id IN UNNEST(@groupIds)
     ),
     ordered_status AS (
       SELECT *,
@@ -240,12 +252,14 @@ async function fetchBigQueryMembershipStatuses(groupIds) {
     WHERE row_number = 1;
   `
 
-  return GoogleBigQueryHelper.query(query)
+  return await GoogleBigQueryHelper.query(query, {
+    groupIds: groupIds.map(id => id.toString()),
+  })
 }
 
 const setup = () => {
   const argv = minimist(process.argv.slice(2))
-  FETCH_LIMIT = argv.fetch ? argv.fetch : 100
+  BATCH_SIZE = argv.batchSize ? parseInt(argv.batchSize, 10) : 100
   COMMIT = argv.commit !== undefined
   VERBOSE = argv.debug !== undefined
   if (!COMMIT) {

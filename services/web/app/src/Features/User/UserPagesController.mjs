@@ -79,7 +79,8 @@ async function settingsPage(req, res) {
     )
     personalAccessTokens = results?.[0] ?? []
   } catch (error) {
-    logger.error(OError.tag(error))
+    const err = OError.tag(error, 'listPersonalAccessTokens hook failed')
+    logger.error({ err, userId }, err.message)
   }
 
   let currentManagedUserAdminEmail
@@ -116,10 +117,6 @@ async function settingsPage(req, res) {
     )
   }
 
-  // Get the user's assignment for this page's Bootstrap 5 split test, which
-  // populates splitTestVariants with a value for the split test name and allows
-  // Pug to read it
-  await SplitTestHandler.promises.getAssignment(req, res, 'bootstrap-5')
   // Get the users write-and-cite assignment to switch between translation strings
   await SplitTestHandler.promises.getAssignment(req, res, 'write-and-cite')
   // Get the users papers-integration assignment to show the linking widget
@@ -152,6 +149,9 @@ async function settingsPage(req, res) {
       },
       writefull: {
         enabled: Boolean(user.writefull?.enabled),
+      },
+      aiErrorAssistant: {
+        enabled: Boolean(user.aiErrorAssistant?.enabled),
       },
     },
     hasPassword: !!user.hashedPassword,
@@ -192,6 +192,22 @@ async function accountSuspended(req, res) {
   })
 }
 
+async function reconfirmAccountPage(req, res) {
+  const pageData = {
+    reconfirm_email: req.session.reconfirm_email,
+  }
+  const { variant } = await SplitTestHandler.promises.getAssignment(
+    req,
+    res,
+    'auth-pages-bs5'
+  )
+
+  const template =
+    variant === 'enabled' ? 'user/reconfirm-bs5' : 'user/reconfirm'
+
+  res.render(template, pageData)
+}
+
 const UserPagesController = {
   accountSuspended: expressify(accountSuspended),
 
@@ -221,7 +237,9 @@ const UserPagesController = {
       AuthenticationController.setRedirectInSession(req, req.query.redir)
     }
     res.render('user/login', {
-      title: 'login',
+      title: Settings.nav?.login_support_title || 'login',
+      login_support_title: Settings.nav?.login_support_title,
+      login_support_text: Settings.nav?.login_support_text,
     })
   },
 
@@ -235,13 +253,7 @@ const UserPagesController = {
     res.render('user/one_time_login')
   },
 
-  renderReconfirmAccountPage(req, res) {
-    const pageData = {
-      reconfirm_email: req.session.reconfirm_email,
-    }
-    // when a user must reconfirm their account
-    res.render('user/reconfirm', pageData)
-  },
+  renderReconfirmAccountPage: expressify(reconfirmAccountPage),
 
   settingsPage: expressify(settingsPage),
 
@@ -294,7 +306,15 @@ const UserPagesController = {
     )
   },
 
-  compromisedPasswordPage(_, res) {
+  async compromisedPasswordPage(req, res) {
+    // Populates splitTestVariants with a value for the split test name and allows
+    // Pug to read it
+    await SplitTestHandler.promises.getAssignment(
+      req,
+      res,
+      'bs5-misc-pages-platform'
+    )
+
     res.render('user/compromised_password')
   },
 

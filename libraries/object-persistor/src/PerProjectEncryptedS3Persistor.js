@@ -343,9 +343,10 @@ class PerProjectEncryptedS3Persistor extends S3Persistor {
   }
 
   async deleteDirectory(bucketName, path, continuationToken) {
+    // Let [Settings.pathToProjectFolder] validate the project path before deleting things.
+    const { projectFolder, dekPath } = this.#buildProjectPaths(bucketName, path)
     // Note: Listing/Deleting a prefix does not require SSE-C credentials.
     await super.deleteDirectory(bucketName, path, continuationToken)
-    const { projectFolder, dekPath } = this.#buildProjectPaths(bucketName, path)
     if (projectFolder === path) {
       await super.deleteObject(
         this.#settings.dataEncryptionKeyBucketName,
@@ -411,6 +412,16 @@ class CachedPerProjectEncryptedS3Persistor {
    */
   async sendFile(bucketName, path, fsPath) {
     return await this.sendStream(bucketName, path, fs.createReadStream(fsPath))
+  }
+
+  /**
+   *
+   * @param {string} bucketName
+   * @param {string} path
+   * @return {Promise<number>}
+   */
+  async getObjectSize(bucketName, path) {
+    return await this.#parent.getObjectSize(bucketName, path)
   }
 
   /**

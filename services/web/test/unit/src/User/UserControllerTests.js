@@ -425,6 +425,60 @@ describe('UserController', function () {
       this.UserController.updateUserSettings(this.req, this.res)
     })
 
+    it('should set referencesSearchMode to advanced', function (done) {
+      this.req.body = { referencesSearchMode: 'advanced' }
+      this.res.sendStatus = code => {
+        this.user.ace.referencesSearchMode.should.equal('advanced')
+        done()
+      }
+      this.UserController.updateUserSettings(this.req, this.res)
+    })
+
+    it('should set referencesSearchMode to simple', function (done) {
+      this.req.body = { referencesSearchMode: 'simple' }
+      this.res.sendStatus = code => {
+        this.user.ace.referencesSearchMode.should.equal('simple')
+        done()
+      }
+      this.UserController.updateUserSettings(this.req, this.res)
+    })
+
+    it('should not allow arbitrary referencesSearchMode', function (done) {
+      this.req.body = { referencesSearchMode: 'foobar' }
+      this.res.sendStatus = code => {
+        this.user.ace.referencesSearchMode.should.equal('advanced')
+        done()
+      }
+      this.UserController.updateUserSettings(this.req, this.res)
+    })
+
+    it('should set enableNewEditor to true', function (done) {
+      this.req.body = { enableNewEditor: true }
+      this.res.sendStatus = code => {
+        this.user.ace.enableNewEditor.should.equal(true)
+        done()
+      }
+      this.UserController.updateUserSettings(this.req, this.res)
+    })
+
+    it('should set enableNewEditor to false', function (done) {
+      this.req.body = { enableNewEditor: false }
+      this.res.sendStatus = code => {
+        this.user.ace.enableNewEditor.should.equal(false)
+        done()
+      }
+      this.UserController.updateUserSettings(this.req, this.res)
+    })
+
+    it('should keep enableNewEditor a boolean', function (done) {
+      this.req.body = { enableNewEditor: 'foobar' }
+      this.res.sendStatus = code => {
+        this.user.ace.enableNewEditor.should.equal(true)
+        done()
+      }
+      this.UserController.updateUserSettings(this.req, this.res)
+    })
+
     it('should send an error if the email is 0 len', function (done) {
       this.req.body.email = ''
       this.res.sendStatus = function (code) {
@@ -916,7 +970,7 @@ describe('UserController', function () {
   describe('ensureAffiliationMiddleware', function () {
     describe('without affiliations feature', function () {
       beforeEach(async function () {
-        await this.UserController.promises.ensureAffiliationMiddleware(
+        await this.UserController.ensureAffiliationMiddleware(
           this.req,
           this.res,
           this.next
@@ -938,7 +992,7 @@ describe('UserController', function () {
     describe('without ensureAffiliation query parameter', function () {
       beforeEach(async function () {
         this.Features.hasFeature.withArgs('affiliations').returns(true)
-        await this.UserController.promises.ensureAffiliationMiddleware(
+        await this.UserController.ensureAffiliationMiddleware(
           this.req,
           this.res,
           this.next
@@ -968,7 +1022,7 @@ describe('UserController', function () {
         ]
         this.Features.hasFeature.withArgs('affiliations').returns(true)
         this.req.query.ensureAffiliation = true
-        await this.UserController.promises.ensureAffiliationMiddleware(
+        await this.UserController.ensureAffiliationMiddleware(
           this.req,
           this.res,
           this.next
@@ -1005,7 +1059,7 @@ describe('UserController', function () {
         this.Features.hasFeature.withArgs('affiliations').returns(true)
         this.req.query.ensureAffiliation = true
         this.req.assertPermission = sinon.stub()
-        await this.UserController.promises.ensureAffiliationMiddleware(
+        await this.UserController.ensureAffiliationMiddleware(
           this.req,
           this.res,
           this.next
@@ -1047,7 +1101,7 @@ describe('UserController', function () {
         this.Features.hasFeature.withArgs('affiliations').returns(true)
         this.req.query.ensureAffiliation = true
         this.req.assertPermission = sinon.stub()
-        await this.UserController.promises.ensureAffiliationMiddleware(
+        await this.UserController.ensureAffiliationMiddleware(
           this.req,
           this.res,
           this.next
@@ -1089,7 +1143,7 @@ describe('UserController', function () {
         this.Features.hasFeature.withArgs('affiliations').returns(true)
         this.req.query.ensureAffiliation = true
         this.req.assertPermission = sinon.stub()
-        await this.UserController.promises.ensureAffiliationMiddleware(
+        await this.UserController.ensureAffiliationMiddleware(
           this.req,
           this.res,
           this.next
@@ -1099,6 +1153,23 @@ describe('UserController', function () {
       it('should check the user has permission', function () {
         expect(this.req.assertPermission).to.have.been.calledWith(
           'add-affiliation'
+        )
+      })
+
+      it('should return the error', function () {
+        expect(this.next).to.be.calledWith(sinon.match.instanceOf(Error))
+      })
+    })
+
+    describe('when user is not found', function () {
+      beforeEach(async function () {
+        this.UserGetter.promises.getUser.rejects(new Error('not found'))
+        this.Features.hasFeature.withArgs('affiliations').returns(true)
+        this.req.query.ensureAffiliation = true
+        await this.UserController.ensureAffiliationMiddleware(
+          this.req,
+          this.res,
+          this.next
         )
       })
 

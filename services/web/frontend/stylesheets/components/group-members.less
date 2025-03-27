@@ -1,13 +1,13 @@
 /* Styles for group-subscription members view */
 
-.structured-list.managed-users-list {
+.structured-list.managed-entities-list {
   /* Override scrolling behaviour on structured-list */
   overflow: initial;
   overflow-y: initial;
   overflow-x: initial;
 }
 
-.managed-users-list {
+.managed-entities-list {
   .security-state-invite-pending {
     color: @text-muted;
   }
@@ -17,7 +17,7 @@
   .security-state-not-managed {
     color: @red;
   }
-  .managed-user-row {
+  .managed-entity-row {
     overflow-wrap: break-word;
   }
 
@@ -61,20 +61,7 @@
   }
 }
 
-.managed-users-list-alert {
-  display: flex;
-  justify-content: space-between;
-  .managed-users-list-alert-close {
-    padding-left: @padding-sm;
-    text-align: right;
-    width: 10%;
-    @media (min-width: @screen-sm-min) {
-      width: auto;
-    }
-  }
-}
-
-.managed-users-table {
+.managed-entities-table {
   width: 100%;
   table-layout: fixed;
 
@@ -106,36 +93,24 @@
   @media (min-width: @screen-xs) {
     .cell-checkbox {
       width: 5%;
-      .managed-users-active.group-sso-active & {
-        width: 3%;
-      }
     }
 
     .cell-email {
       width: 50%;
-      .managed-users-active & {
-        width: 35%;
-      }
-      .group-sso-active & {
+    }
+
+    &.group-sso-active {
+      .cell-email {
         width: 37%;
-      }
-      .managed-users-active.group-sso-active & {
-        width: 29%;
       }
     }
 
     .cell-name {
       width: 20%;
-      .managed-users-active.group-sso-active & {
-        width: 18%;
-      }
     }
 
     .cell-last-active {
       width: 20%;
-      .managed-users-active.group-sso-active & {
-        width: 16%;
-      }
     }
 
     .cell-security {
@@ -150,33 +125,51 @@
       width: 6%;
       min-width: 25px;
     }
+
+    .cell-accepted-invite {
+      width: 17%;
+    }
+
+    &.managed-users-active {
+      .cell-email {
+        width: 35%;
+      }
+
+      &.group-sso-active {
+        .cell-checkbox {
+          width: 3%;
+        }
+
+        .cell-email {
+          width: 29%;
+        }
+
+        .cell-last-active {
+          width: 16%;
+        }
+
+        .cell-name {
+          width: 18%;
+        }
+      }
+    }
   }
 
   @media (min-width: @screen-lg) {
     .cell-checkbox {
       width: 5%;
-      .managed-users-active.group-sso-active & {
-        width: 3%;
-      }
     }
+
     .cell-email {
       width: 55%;
-      .managed-users-active & {
-        width: 42%;
-      }
-      .group-sso-active & {
-        width: 45%;
-      }
-      .managed-users-active.group-sso-active & {
-        width: 36%;
-      }
+    }
+
+    &.group-sso-active .cell-email {
+      width: 45%;
     }
 
     .cell-name {
       width: 20%;
-      .managed-users-active.group-sso-active & {
-        width: 18%;
-      }
     }
 
     .cell-last-active {
@@ -195,6 +188,30 @@
       width: 5%;
       min-width: 25px;
     }
+
+    .cell-accepted-invite {
+      width: 17%;
+    }
+
+    &.managed-users-active {
+      .cell-email {
+        width: 42%;
+      }
+
+      &.group-sso-active {
+        .cell-checkbox {
+          width: 3%;
+        }
+
+        .cell-email {
+          width: 36%;
+        }
+
+        .cell-name {
+          width: 18%;
+        }
+      }
+    }
   }
 }
 
@@ -203,4 +220,9 @@
     position: relative;
     top: 4px;
   }
+}
+
+.badge-group-settings {
+  align-self: center;
+  padding: 0 16px;
 }

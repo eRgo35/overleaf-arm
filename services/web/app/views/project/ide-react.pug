@@ -6,7 +6,6 @@ block vars
 	- var suppressSkipToContent = true
 	- var deferScripts = true
 	- bootstrap5PageStatus = 'enabled' // One of 'disabled', 'enabled', and 'queryStringOnly'
-	- bootstrap5PageSplitTest = 'bootstrap-5-ide'
 	- metadata.robotsNoindexNofollow = true
 	- enableIeeeBranding = false
 
@@ -27,6 +26,4 @@ block append meta
 	include editor/_meta
 
 block prepend foot-scripts
-	each file in (useOpenTelemetry ? entrypointScripts("tracing") : [])
-		script(type="text/javascript", nonce=scriptNonce, src=file, defer=deferScripts)
 	script(type="text/javascript", nonce=scriptNonce, src=(wsUrl || '/socket.io') + '/socket.io.js', defer=deferScripts)

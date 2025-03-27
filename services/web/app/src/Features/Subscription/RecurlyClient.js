@@ -16,6 +16,10 @@ const {
   RecurlyPlan,
   RecurlyImmediateCharge,
 } = require('./RecurlyEntities')
+const {
+  MissingBillingInfoError,
+  SubtotalLimitExceededError,
+} = require('./Errors')
 
 /**
  * @import { RecurlySubscriptionChangeRequest } from './RecurlyEntities'
@@ -115,14 +119,37 @@ async function getSubscriptionForUser(userId) {
  */
 async function applySubscriptionChangeRequest(changeRequest) {
   const body = subscriptionChangeRequestToApi(changeRequest)
-  const change = await client.createSubscriptionChange(
-    `uuid-${changeRequest.subscription.id}`,
-    body
-  )
-  logger.debug(
-    { subscriptionId: changeRequest.subscription.id, changeId: change.id },
-    'created subscription change'
-  )
+
+  try {
+    const change = await client.createSubscriptionChange(
+      `uuid-${changeRequest.subscription.id}`,
+      body
+    )
+    logger.debug(
+      { subscriptionId: changeRequest.subscription.id, changeId: change.id },
+      'created subscription change'
+    )
+  } catch (err) {
+    if (err instanceof recurly.errors.ValidationError) {
+      /**
+       * @type {{params?: { param?: string }[] | null}}
+       */
+      const validationError = err
+      if (
+        validationError.params?.some(
+          p => p.param === 'subtotal_amount_in_cents'
+        )
+      ) {
+        throw new SubtotalLimitExceededError(
+          'Subtotal amount in cents exceeded error',
+          {
+            subscriptionId: changeRequest.subscription.id,
+          }
+        )
+      }
+    }
+    throw err
+  }
 }
 
 /**
@@ -133,14 +160,38 @@ async function applySubscriptionChangeRequest(changeRequest) {
  */
 async function previewSubscriptionChange(changeRequest) {
   const body = subscriptionChangeRequestToApi(changeRequest)
-  const subscriptionChange = await client.previewSubscriptionChange(
-    `uuid-${changeRequest.subscription.id}`,
-    body
-  )
-  return subscriptionChangeFromApi(
-    changeRequest.subscription,
-    subscriptionChange
-  )
+
+  try {
+    const subscriptionChange = await client.previewSubscriptionChange(
+      `uuid-${changeRequest.subscription.id}`,
+      body
+    )
+
+    return subscriptionChangeFromApi(
+      changeRequest.subscription,
+      subscriptionChange
+    )
+  } catch (err) {
+    if (err instanceof recurly.errors.ValidationError) {
+      /**
+       * @type {{params?: { param?: string }[] | null}}
+       */
+      const validationError = err
+      if (
+        validationError.params?.some(
+          p => p.param === 'subtotal_amount_in_cents'
+        )
+      ) {
+        throw new SubtotalLimitExceededError(
+          'Subtotal amount in cents exceeded error',
+          {
+            subscriptionId: changeRequest.subscription.id,
+          }
+        )
+      }
+    }
+    throw err
+  }
 }
 
 async function removeSubscriptionChange(subscriptionId) {
@@ -176,6 +227,16 @@ async function cancelSubscriptionByUuid(subscriptionUuid) {
   }
 }
 
+async function pauseSubscriptionByUuid(subscriptionUuid, pauseCycles) {
+  return await client.pauseSubscription('uuid-' + subscriptionUuid, {
+    remainingPauseCycles: pauseCycles,
+  })
+}
+
+async function resumeSubscriptionByUuid(subscriptionUuid) {
+  return await client.resumeSubscription('uuid-' + subscriptionUuid)
+}
+
 /**
  * Get the payment method for the given user
  *
@@ -183,7 +244,19 @@ async function cancelSubscriptionByUuid(subscriptionUuid) {
  * @return {Promise<PaymentMethod>}
  */
 async function getPaymentMethod(userId) {
-  const billingInfo = await client.getBillingInfo(`code-${userId}`)
+  let billingInfo
+
+  try {
+    billingInfo = await client.getBillingInfo(`code-${userId}`)
+  } catch (error) {
+    if (error instanceof recurly.errors.NotFoundError) {
+      throw new MissingBillingInfoError('This account has no billing info', {
+        userId,
+      })
+    }
+    throw error
+  }
+
   return paymentMethodFromApi(billingInfo)
 }
 
@@ -237,7 +310,8 @@ function subscriptionFromApi(apiSubscription) {
     apiSubscription.total == null ||
     apiSubscription.currency == null ||
     apiSubscription.currentPeriodStartedAt == null ||
-    apiSubscription.currentPeriodEndsAt == null
+    apiSubscription.currentPeriodEndsAt == null ||
+    apiSubscription.collectionMethod == null
   ) {
     throw new OError('Invalid Recurly subscription', {
       subscription: apiSubscription,
@@ -258,6 +332,7 @@ function subscriptionFromApi(apiSubscription) {
     currency: apiSubscription.currency,
     periodStart: apiSubscription.currentPeriodStartedAt,
     periodEnd: apiSubscription.currentPeriodEndsAt,
+    collectionMethod: apiSubscription.collectionMethod,
   })
 
   if (apiSubscription.pendingChange != null) {
@@ -339,6 +414,8 @@ function computeImmediateCharge(subscriptionChange) {
     subscriptionChange.invoiceCollection?.chargeInvoice?.subtotal ?? 0
   let tax = subscriptionChange.invoiceCollection?.chargeInvoice?.tax ?? 0
   let total = subscriptionChange.invoiceCollection?.chargeInvoice?.total ?? 0
+  let discount =
+    subscriptionChange.invoiceCollection?.chargeInvoice?.discount ?? 0
   for (const creditInvoice of subscriptionChange.invoiceCollection
     ?.creditInvoices ?? []) {
     // The credit invoice numbers are already negative
@@ -346,12 +423,13 @@ function computeImmediateCharge(subscriptionChange) {
     total = roundToTwoDecimal(total + (creditInvoice.total ?? 0))
     // Tax rate can be different in credit invoice if a user relocates
     tax = roundToTwoDecimal(tax + (creditInvoice.tax ?? 0))
+    discount = roundToTwoDecimal(discount + (creditInvoice.discount ?? 0))
   }
-
   return new RecurlyImmediateCharge({
     subtotal,
     total,
     tax,
+    discount,
   })
 }
 
@@ -459,6 +537,8 @@ module.exports = {
   getAddOn: callbackify(getAddOn),
   getPlan: callbackify(getPlan),
   subscriptionIsCanceledOrExpired,
+  pauseSubscriptionByUuid: callbackify(pauseSubscriptionByUuid),
+  resumeSubscriptionByUuid: callbackify(resumeSubscriptionByUuid),
 
   promises: {
     getSubscription,
@@ -471,6 +551,8 @@ module.exports = {
     removeSubscriptionChangeByUuid,
     reactivateSubscriptionByUuid,
     cancelSubscriptionByUuid,
+    pauseSubscriptionByUuid,
+    resumeSubscriptionByUuid,
     getPaymentMethod,
     getAddOn,
     getPlan,

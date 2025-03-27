@@ -34,12 +34,10 @@ function ConfirmCancelSubscriptionButton({
   return (
     <OLButton
       isLoading={isLoading}
+      loadingLabel={t('processing_uppercase') + '…'}
       disabled={disabled}
       onClick={onClick}
-      className={showNoThanks ? 'btn-inline-link' : undefined}
-      bs3Props={{
-        loading: isLoading ? t('processing_uppercase') + '…' : text,
-      }}
+      variant={showNoThanks ? 'link' : undefined}
     >
       {text}
     </OLButton>
@@ -162,7 +160,9 @@ export function CancelSubscription() {
   const showDowngrade = showDowngradeOption(
     personalSubscription.plan.planCode,
     personalSubscription.plan.groupPlan,
-    personalSubscription.recurly.trial_ends_at
+    personalSubscription.recurly.trial_ends_at,
+    personalSubscription.recurly.pausedAt,
+    personalSubscription.recurly.remainingPauseCycles
   )
   const planToDowngradeTo = plans.find(
     plan => plan.planCode === planCodeToDowngradeTo
@@ -183,29 +183,31 @@ export function CancelSubscription() {
   const showExtendFreeTrial = userCanExtendTrial
 
   return (
-    <div className="text-center">
-      <p>
-        <strong>{t('wed_love_you_to_stay')}</strong>
-      </p>
+    <>
+      <div className="text-center">
+        <p>
+          <strong>{t('wed_love_you_to_stay')}</strong>
+        </p>
 
-      {(isErrorCancel || isErrorSecondaryAction) && <GenericErrorAlert />}
+        {(isErrorCancel || isErrorSecondaryAction) && <GenericErrorAlert />}
 
-      <NotCancelOption
-        showExtendFreeTrial={showExtendFreeTrial}
-        showDowngrade={showDowngrade}
-        isButtonDisabled={isButtonDisabled}
-        isLoadingSecondaryAction={isLoadingSecondaryAction}
-        isSuccessSecondaryAction={isSuccessSecondaryAction}
-        planToDowngradeTo={planToDowngradeTo}
-        runAsyncSecondaryAction={runAsyncSecondaryAction}
-      />
+        <NotCancelOption
+          showExtendFreeTrial={showExtendFreeTrial}
+          showDowngrade={showDowngrade}
+          isButtonDisabled={isButtonDisabled}
+          isLoadingSecondaryAction={isLoadingSecondaryAction}
+          isSuccessSecondaryAction={isSuccessSecondaryAction}
+          planToDowngradeTo={planToDowngradeTo}
+          runAsyncSecondaryAction={runAsyncSecondaryAction}
+        />
 
-      <ConfirmCancelSubscriptionButton
-        showNoThanks={showExtendFreeTrial || showDowngrade}
-        onClick={handleCancelSubscription}
-        disabled={isButtonDisabled}
-        isLoading={isSuccessCancel || isLoadingCancel}
-      />
-    </div>
+        <ConfirmCancelSubscriptionButton
+          showNoThanks={showExtendFreeTrial || showDowngrade}
+          onClick={handleCancelSubscription}
+          disabled={isButtonDisabled}
+          isLoading={isSuccessCancel || isLoadingCancel}
+        />
+      </div>
+    </>
   )
 }

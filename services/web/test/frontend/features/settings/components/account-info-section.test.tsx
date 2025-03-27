@@ -39,10 +39,10 @@ describe('<AccountInfoSection />', function () {
     fireEvent.change(screen.getByLabelText('Email'), {
       target: { value: 'john@watson.co.uk' },
     })
-    fireEvent.change(screen.getByLabelText('First Name'), {
+    fireEvent.change(screen.getByLabelText('First name'), {
       target: { value: 'John' },
     })
-    fireEvent.change(screen.getByLabelText('Last Name'), {
+    fireEvent.change(screen.getByLabelText('Last name'), {
       target: { value: 'Watson' },
     })
     fireEvent.click(
@@ -90,7 +90,7 @@ describe('<AccountInfoSection />', function () {
         name: 'Update',
       })
     )
-    await screen.findByText('Saving…')
+    await screen.findByRole('button', { name: /saving/i })
 
     finishUpdateCall(200)
     await screen.findByRole('button', {
@@ -173,11 +173,11 @@ describe('<AccountInfoSection />', function () {
 
     renderSectionWithUserProvider()
     expect(screen.getByLabelText('Email')).to.have.property('readOnly', true)
-    expect(screen.getByLabelText('First Name')).to.have.property(
+    expect(screen.getByLabelText('First name')).to.have.property(
       'readOnly',
       false
     )
-    expect(screen.getByLabelText('Last Name')).to.have.property(
+    expect(screen.getByLabelText('Last name')).to.have.property(
       'readOnly',
       false
     )
@@ -201,11 +201,11 @@ describe('<AccountInfoSection />', function () {
 
     renderSectionWithUserProvider()
     expect(screen.getByLabelText('Email')).to.have.property('readOnly', false)
-    expect(screen.getByLabelText('First Name')).to.have.property(
+    expect(screen.getByLabelText('First name')).to.have.property(
       'readOnly',
       true
     )
-    expect(screen.getByLabelText('Last Name')).to.have.property(
+    expect(screen.getByLabelText('Last name')).to.have.property(
       'readOnly',
       true
     )

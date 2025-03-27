@@ -5,7 +5,7 @@ import { projectsData } from '../../../../fixtures/projects-data'
 import * as useLocationModule from '../../../../../../../../frontend/js/shared/hooks/use-location'
 import { CompileAndDownloadProjectPDFButtonTooltip } from '../../../../../../../../frontend/js/features/project-list/components/table/cells/action-buttons/compile-and-download-project-pdf-button'
 import fetchMock from 'fetch-mock'
-import * as eventTracking from '../../../../../../../../frontend/js/infrastructure/event-tracking'
+import * as eventTracking from '@/infrastructure/event-tracking'
 
 describe('<CompileAndDownloadProjectPDFButton />', function () {
   let assignStub: sinon.SinonStub
@@ -19,6 +19,7 @@ describe('<CompileAndDownloadProjectPDFButton />', function () {
       assign: assignStub,
       replace: sinon.stub(),
       reload: sinon.stub(),
+      setHash: sinon.stub(),
     })
     render(
       <CompileAndDownloadProjectPDFButtonTooltip project={projectsData[0]} />
@@ -31,10 +32,10 @@ describe('<CompileAndDownloadProjectPDFButton />', function () {
     sendMBSpy.restore()
   })
 
-  it('renders tooltip for button', function () {
+  it('renders tooltip for button', async function () {
     const btn = screen.getByRole('button', { name: 'Download PDF' })
     fireEvent.mouseOver(btn)
-    screen.getByRole('tooltip', { name: 'Download PDF' })
+    await screen.findByRole('tooltip', { name: 'Download PDF' })
   })
 
   it('downloads the project PDF when clicked', async function () {

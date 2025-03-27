@@ -1,3 +1,5 @@
+// @ts-check
+
 const logger = require('@overleaf/logger')
 const ProjectGetter = require('../Project/ProjectGetter')
 const UserGetter = require('../User/UserGetter')
@@ -5,6 +7,7 @@ const SubscriptionLocator = require('./SubscriptionLocator')
 const Settings = require('@overleaf/settings')
 const CollaboratorsGetter = require('../Collaborators/CollaboratorsGetter')
 const CollaboratorsInvitesGetter = require('../Collaborators/CollaboratorsInviteGetter')
+const PrivilegeLevels = require('../Authorization/PrivilegeLevels')
 const {
   callbackify,
   callbackifyMultiResult,
@@ -38,18 +41,6 @@ async function canAcceptEditCollaboratorInvite(projectId) {
   return currentEditors + 1 <= allowedNumber
 }
 
-async function canAddXCollaborators(projectId, numberOfNewCollaborators) {
-  const allowedNumber = await allowedNumberOfCollaboratorsInProject(projectId)
-  if (allowedNumber < 0) {
-    return true // -1 means unlimited
-  }
-  const currentNumber =
-    await CollaboratorsGetter.promises.getInvitedCollaboratorCount(projectId)
-  const inviteCount =
-    await CollaboratorsInvitesGetter.promises.getInviteCount(projectId)
-  return currentNumber + inviteCount + numberOfNewCollaborators <= allowedNumber
-}
-
 async function canAddXEditCollaborators(
   projectId,
   numberOfNewEditCollaborators
@@ -68,6 +59,53 @@ async function canAddXEditCollaborators(
     currentEditors + editInviteCount + numberOfNewEditCollaborators <=
     allowedNumber
   )
+}
+
+/**
+ * Check whether a collaborator can be switched to the given privilege level
+ *
+ * @param {string} projectId
+ * @param {string} userId
+ * @param {'readOnly' | 'review' | 'readAndWrite'} privilegeLevel
+ * @return {Promise<boolean>}
+ */
+async function canChangeCollaboratorPrivilegeLevel(
+  projectId,
+  userId,
+  privilegeLevel
+) {
+  if (privilegeLevel === PrivilegeLevels.READ_ONLY) {
+    return true
+  }
+
+  const currentPrivilegeLevel =
+    await CollaboratorsGetter.promises.getMemberIdPrivilegeLevel(
+      userId,
+      projectId
+    )
+  if (
+    currentPrivilegeLevel === PrivilegeLevels.READ_AND_WRITE ||
+    currentPrivilegeLevel === PrivilegeLevels.REVIEW
+  ) {
+    // Current collaborator already takes a slot, so changing the privilege
+    // level won't increase the collaborator count
+    return true
+  }
+
+  const allowedNumber = await allowedNumberOfCollaboratorsInProject(projectId)
+  if (allowedNumber < 0) {
+    // -1 means unlimited
+    return true
+  }
+
+  const slotsTaken =
+    await CollaboratorsGetter.promises.getInvitedEditCollaboratorCount(
+      projectId
+    )
+  const inviteCount =
+    await CollaboratorsInvitesGetter.promises.getEditInviteCount(projectId)
+
+  return slotsTaken + inviteCount < allowedNumber
 }
 
 async function hasPaidSubscription(user) {
@@ -133,8 +171,10 @@ const LimitationsManager = {
   allowedNumberOfCollaboratorsForUser: callbackify(
     allowedNumberOfCollaboratorsForUser
   ),
-  canAddXCollaborators: callbackify(canAddXCollaborators),
   canAddXEditCollaborators: callbackify(canAddXEditCollaborators),
+  canChangeCollaboratorPrivilegeLevel: callbackify(
+    canChangeCollaboratorPrivilegeLevel
+  ),
   hasPaidSubscription: callbackifyMultiResult(hasPaidSubscription, [
     'hasPaidSubscription',
     'subscription',
@@ -162,8 +202,8 @@ const LimitationsManager = {
     allowedNumberOfCollaboratorsInProject,
     allowedNumberOfCollaboratorsForUser,
     canAcceptEditCollaboratorInvite,
-    canAddXCollaborators,
     canAddXEditCollaborators,
+    canChangeCollaboratorPrivilegeLevel,
     hasPaidSubscription,
     userHasSubscriptionOrIsGroupMember,
     userHasSubscription,

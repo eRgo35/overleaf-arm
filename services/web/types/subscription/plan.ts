@@ -27,6 +27,7 @@ export type RecurlyAddOn = {
   add_on_code: string
   quantity: number
   unit_amount_in_cents: number
+  displayPrice: string
 }
 
 export type PendingRecurlyPlan = {
@@ -67,3 +68,22 @@ export type PriceForDisplayData = {
   includesTax: boolean
   perUserDisplayPrice?: string
 }
+
+export type RecurlyPlanCode =
+  | 'collaborator'
+  | 'collaborator-annual'
+  | 'collaborator_free_trial_7_days'
+  | 'professional'
+  | 'professional-annual'
+  | 'professional_free_trial_7_days'
+  | 'student'
+  | 'student-annual'
+  | 'student_free_trial_7_days'
+
+export type StripeLookupKey =
+  | 'collaborator_monthly'
+  | 'collaborator_annual'
+  | 'professional_monthly'
+  | 'professional_annual'
+  | 'student_monthly'
+  | 'student_annual'

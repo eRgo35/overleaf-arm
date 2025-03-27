@@ -27,6 +27,7 @@ module.exports = {
       url: `http://${process.env.DOCSTORE_HOST || '127.0.0.1'}:3016`,
     },
     filestore: {
+      enabled: process.env.FILESTORE_ENABLED !== 'false',
       url: `http://${process.env.FILESTORE_HOST || '127.0.0.1'}:3009`,
     },
     web: {
@@ -39,6 +40,9 @@ module.exports = {
         process.env.HISTORY_ID_CACHE_SIZE || '10000',
         10
       ),
+    },
+    project_history: {
+      url: `http://${process.env.PROJECT_HISTORY_HOST || '127.0.0.1'}:3054`,
     },
   },
   redis: {

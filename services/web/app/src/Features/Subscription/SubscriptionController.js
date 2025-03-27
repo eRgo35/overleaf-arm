@@ -9,8 +9,6 @@ const Settings = require('@overleaf/settings')
 const logger = require('@overleaf/logger')
 const GeoIpLookup = require('../../infrastructure/GeoIpLookup')
 const FeaturesUpdater = require('./FeaturesUpdater')
-const plansConfig = require('./plansConfig')
-const interstitialPaymentConfig = require('./interstitialPaymentConfig')
 const GroupPlansData = require('./GroupPlansData')
 const V1SubscriptionManager = require('./V1SubscriptionManager')
 const AnalyticsManager = require('../Analytics/AnalyticsManager')
@@ -19,14 +17,10 @@ const { expressify } = require('@overleaf/promise-utils')
 const OError = require('@overleaf/o-error')
 const { DuplicateAddOnError, AddOnNotPresentError } = require('./Errors')
 const SplitTestHandler = require('../SplitTests/SplitTestHandler')
-const SubscriptionHelper = require('./SubscriptionHelper')
 const AuthorizationManager = require('../Authorization/AuthorizationManager')
 const Modules = require('../../infrastructure/Modules')
 const async = require('async')
-const { formatCurrencyLocalized } = require('../../util/currency')
-const SubscriptionFormatters = require('./SubscriptionFormatters')
 const HttpErrorHandler = require('../Errors/HttpErrorHandler')
-const { URLSearchParams } = require('url')
 const RecurlyClient = require('./RecurlyClient')
 const { AI_ADD_ON_CODE } = require('./RecurlyEntities')
 const PlansLocator = require('./PlansLocator')
@@ -39,176 +33,6 @@ const PlansLocator = require('./PlansLocator')
  */
 
 const groupPlanModalOptions = Settings.groupPlanModalOptions
-const validGroupPlanModalOptions = {
-  plan_code: groupPlanModalOptions.plan_codes.map(item => item.code),
-  currency: groupPlanModalOptions.currencies.map(item => item.code),
-  size: groupPlanModalOptions.sizes,
-  usage: groupPlanModalOptions.usages.map(item => item.code),
-}
-
-function _getGroupPlanModalDefaults(req, currency) {
-  function getDefault(param, category, defaultValue) {
-    const v = req.query && req.query[param]
-    if (v && validGroupPlanModalOptions[category].includes(v)) {
-      return v
-    }
-    return defaultValue
-  }
-
-  let defaultGroupPlanModalCurrency = 'USD'
-  if (validGroupPlanModalOptions.currency.includes(currency)) {
-    defaultGroupPlanModalCurrency = currency
-  }
-
-  return {
-    plan_code: getDefault('plan', 'plan_code', 'collaborator'),
-    size: getDefault('number', 'size', '2'),
-    currency: getDefault('currency', 'currency', defaultGroupPlanModalCurrency),
-    usage: getDefault('usage', 'usage', 'enterprise'),
-  }
-}
-
-function _plansBanners(countryCode) {
-  const showLATAMBanner = ['MX', 'CO', 'CL', 'PE'].includes(countryCode)
-  const showInrGeoBanner = countryCode === 'IN'
-  const showBrlGeoBanner = countryCode === 'BR'
-  return { showLATAMBanner, showInrGeoBanner, showBrlGeoBanner }
-}
-
-async function plansPage(req, res) {
-  const websiteRedesignPlansAssignment =
-    await SplitTestHandler.promises.getAssignment(
-      req,
-      res,
-      'website-redesign-plans'
-    )
-  if (websiteRedesignPlansAssignment.variant !== 'default') {
-    const queryParamString = new URLSearchParams(req.query)?.toString()
-    const queryParamForRedirect = queryParamString ? '?' + queryParamString : ''
-
-    if (websiteRedesignPlansAssignment.variant === 'new-design') {
-      return res.redirect(
-        302,
-        '/user/subscription/plans-2' + queryParamForRedirect
-      )
-    } else if (websiteRedesignPlansAssignment.variant === 'light-design') {
-      return res.redirect(
-        302,
-        '/user/subscription/plans-3' + queryParamForRedirect
-      )
-    }
-  }
-
-  const language = req.i18n.language || 'en'
-
-  const plans = SubscriptionViewModelBuilder.buildPlansList()
-
-  const { currency, countryCode } = await _getRecommendedCurrency(req, res)
-
-  const latamCountryBannerDetails = await getLatamCountryBannerDetails(req, res)
-  const groupPlanModalDefaults = _getGroupPlanModalDefaults(req, currency)
-
-  const currentView = 'annual'
-
-  const { showLATAMBanner, showInrGeoBanner, showBrlGeoBanner } =
-    _plansBanners(countryCode)
-
-  const localCcyAssignment = await SplitTestHandler.promises.getAssignment(
-    req,
-    res,
-    'local-ccy-format-v2'
-  )
-  const formatCurrency =
-    localCcyAssignment.variant === 'enabled'
-      ? formatCurrencyLocalized
-      : SubscriptionHelper.formatCurrencyDefault
-
-  const shouldLoadHotjar = await getShouldLoadHotjar(req, res)
-
-  res.render('subscriptions/plans', {
-    title: 'plans_and_pricing',
-    currentView,
-    plans,
-    itm_content: req.query?.itm_content,
-    itm_referrer: req.query?.itm_referrer,
-    itm_campaign: 'plans',
-    language,
-    formatCurrency,
-    recommendedCurrency: currency,
-    plansConfig,
-    groupPlans: GroupPlansData,
-    groupPlanModalOptions,
-    groupPlanModalDefaults,
-    initialLocalizedGroupPrice:
-      SubscriptionHelper.generateInitialLocalizedGroupPrice(
-        currency ?? 'USD',
-        language,
-        formatCurrency
-      ),
-    showInrGeoBanner,
-    showBrlGeoBanner,
-    showLATAMBanner,
-    latamCountryBannerDetails,
-    countryCode,
-    websiteRedesignPlansVariant: 'default',
-    shouldLoadHotjar,
-  })
-}
-
-async function plansPageLightDesign(req, res) {
-  const { currency, countryCode } = await _getRecommendedCurrency(req, res)
-
-  const language = req.i18n.language || 'en'
-  const currentView = 'annual'
-  const plans = SubscriptionViewModelBuilder.buildPlansList()
-  const groupPlanModalDefaults = _getGroupPlanModalDefaults(req, currency)
-
-  const localCcyAssignment = await SplitTestHandler.promises.getAssignment(
-    req,
-    res,
-    'local-ccy-format-v2'
-  )
-  const formatCurrency =
-    localCcyAssignment.variant === 'enabled'
-      ? formatCurrencyLocalized
-      : SubscriptionHelper.formatCurrencyDefault
-
-  const { showLATAMBanner, showInrGeoBanner, showBrlGeoBanner } =
-    _plansBanners(countryCode)
-
-  const latamCountryBannerDetails = await getLatamCountryBannerDetails(req, res)
-
-  const shouldLoadHotjar = await getShouldLoadHotjar(req, res)
-
-  res.render('subscriptions/plans-light-design', {
-    title: 'plans_and_pricing',
-    currentView,
-    plans,
-    itm_content: req.query?.itm_content,
-    itm_referrer: req.query?.itm_referrer,
-    itm_campaign: 'plans',
-    language,
-    formatCurrency,
-    recommendedCurrency: currency,
-    plansConfig,
-    groupPlans: GroupPlansData,
-    groupPlanModalOptions,
-    groupPlanModalDefaults,
-    initialLocalizedGroupPrice:
-      SubscriptionHelper.generateInitialLocalizedGroupPrice(
-        currency ?? 'USD',
-        language,
-        formatCurrency
-      ),
-    showLATAMBanner,
-    showInrGeoBanner,
-    showBrlGeoBanner,
-    latamCountryBannerDetails,
-    countryCode,
-    websiteRedesignPlansVariant: 'light-design',
-    shouldLoadHotjar,
-  })
-}
 
 function formatGroupPlansDataForDash() {
   return {
@@ -222,29 +46,27 @@ function formatGroupPlansDataForDash() {
 async function userSubscriptionPage(req, res) {
   const user = SessionManager.getSessionUser(req.session)
 
-  const localCcyAssignment = await SplitTestHandler.promises.getAssignment(
-    req,
-    res,
-    'local-ccy-format-v2'
-  )
-  await SplitTestHandler.promises.getAssignment(req, res, 'ai-add-on')
+  await SplitTestHandler.promises.getAssignment(req, res, 'pause-subscription')
 
-  // Populates splitTestVariants with a value for the split test name and allows
-  // Pug to read it
-  await SplitTestHandler.promises.getAssignment(
+  const groupPricingDiscount = await SplitTestHandler.promises.getAssignment(
     req,
     res,
-    'bootstrap-5-subscription'
+    'group-discount-10'
   )
-  await SplitTestHandler.promises.getAssignment(req, res, 'group-pricing-2025')
+
+  const showGroupDiscount = groupPricingDiscount.variant === 'enabled'
+
+  const { variant: flexibleLicensingVariant } =
+    await SplitTestHandler.promises.getAssignment(
+      req,
+      res,
+      'flexible-group-licensing'
+    )
 
   const results =
     await SubscriptionViewModelBuilder.promises.buildUsersSubscriptionViewModel(
       user,
-      req.i18n.language,
-      localCcyAssignment.variant === 'enabled'
-        ? SubscriptionFormatters.formatPriceLocalized
-        : SubscriptionFormatters.formatPriceDefault
+      req.i18n.language
     )
   const {
     personalSubscription,
@@ -304,6 +126,42 @@ async function userSubscriptionPage(req, res) {
     )
   }
 
+  let groupSettingsAdvertisedFor
+  try {
+    const managedGroups = await async.filter(
+      managedGroupSubscriptions || [],
+      async subscription => {
+        const managedUsersResults = await Modules.promises.hooks.fire(
+          'hasManagedUsersFeatureOnNonProfessionalPlan',
+          subscription
+        )
+        const groupSSOResults = await Modules.promises.hooks.fire(
+          'hasGroupSSOFeatureOnNonProfessionalPlan',
+          subscription
+        )
+        const isGroupAdmin =
+          (subscription.admin_id._id || subscription.admin_id).toString() ===
+          user._id.toString()
+        const plan = PlansLocator.findLocalPlanInSettings(subscription.planCode)
+        return (
+          (managedUsersResults?.[0] === true ||
+            groupSSOResults?.[0] === true) &&
+          isGroupAdmin &&
+          flexibleLicensingVariant === 'enabled' &&
+          plan?.canUseFlexibleLicensing
+        )
+      }
+    )
+    groupSettingsAdvertisedFor = managedGroups.map(subscription =>
+      subscription._id.toString()
+    )
+  } catch (error) {
+    logger.error(
+      { err: error },
+      'Failed to list groups with group settings enabled for advertising'
+    )
+  }
+
   const data = {
     title: 'your_subscription',
     plans: plansData?.plans,
@@ -317,8 +175,12 @@ async function userSubscriptionPage(req, res) {
     managedGroupSubscriptions,
     managedInstitutions,
     managedPublishers,
+    showGroupDiscount,
     currentInstitutionsWithLicence,
+    canUseFlexibleLicensing:
+      personalSubscription?.plan?.canUseFlexibleLicensing,
     groupPlans: groupPlansDataForDash,
+    groupSettingsAdvertisedFor,
     groupSettingsEnabledFor,
     isManagedAccount: !!req.managedBy,
     userRestrictions: Array.from(req.userRestrictions || []),
@@ -326,91 +188,13 @@ async function userSubscriptionPage(req, res) {
   res.render('subscriptions/dashboard-react', data)
 }
 
-async function interstitialPaymentPage(req, res) {
-  const websiteRedesignPlansAssignment =
-    await SplitTestHandler.promises.getAssignment(
-      req,
-      res,
-      'website-redesign-plans'
-    )
-
-  let template = 'subscriptions/interstitial-payment'
-
-  if (websiteRedesignPlansAssignment.variant === 'new-design') {
-    return await Modules.promises.hooks.fire(
-      'interstitialPaymentPageNewDesign',
-      req,
-      res
-    )
-  } else if (websiteRedesignPlansAssignment.variant === 'light-design') {
-    template = 'subscriptions/interstitial-payment-light-design'
-  }
-
-  const user = SessionManager.getSessionUser(req.session)
-  const { recommendedCurrency, countryCode } = await _getRecommendedCurrency(
-    req,
-    res
-  )
-
-  const latamCountryBannerDetails = await getLatamCountryBannerDetails(req, res)
-
-  const { hasSubscription } =
-    await LimitationsManager.promises.userHasSubscription(user)
-  const showSkipLink = req.query?.skipLink === 'true'
-
-  if (hasSubscription) {
-    res.redirect('/user/subscription?hasSubscription=true')
-  } else {
-    const { showLATAMBanner, showInrGeoBanner, showBrlGeoBanner } =
-      _plansBanners(countryCode)
-
-    const localCcyAssignment = await SplitTestHandler.promises.getAssignment(
-      req,
-      res,
-      'local-ccy-format-v2'
-    )
-
-    const shouldLoadHotjar = await getShouldLoadHotjar(req, res)
-
-    res.render(template, {
-      title: 'subscribe',
-      itm_content: req.query?.itm_content,
-      itm_campaign: req.query?.itm_campaign,
-      itm_referrer: req.query?.itm_referrer,
-      recommendedCurrency,
-      interstitialPaymentConfig,
-      showSkipLink,
-      formatCurrency:
-        localCcyAssignment.variant === 'enabled'
-          ? formatCurrencyLocalized
-          : SubscriptionHelper.formatCurrencyDefault,
-      showCurrencyAndPaymentMethods: localCcyAssignment.variant === 'enabled',
-      showInrGeoBanner,
-      showBrlGeoBanner,
-      showLATAMBanner,
-      latamCountryBannerDetails,
-      skipLinkTarget: req.session?.postCheckoutRedirect || '/project',
-      websiteRedesignPlansVariant: websiteRedesignPlansAssignment.variant,
-      countryCode,
-      shouldLoadHotjar,
-    })
-  }
-}
-
 async function successfulSubscription(req, res) {
   const user = SessionManager.getSessionUser(req.session)
-  const localCcyAssignment = await SplitTestHandler.promises.getAssignment(
-    req,
-    res,
-    'local-ccy-format-v2'
-  )
+
   const { personalSubscription } =
     await SubscriptionViewModelBuilder.promises.buildUsersSubscriptionViewModel(
       user,
-      req.i18n.language,
-      localCcyAssignment.variant === 'enabled'
-        ? SubscriptionFormatters.formatPriceLocalized
-        : SubscriptionFormatters.formatPriceDefault
+      req.i18n.language
     )
 
   const postCheckoutRedirect = req.session?.postCheckoutRedirect
@@ -418,18 +202,76 @@ async function successfulSubscription(req, res) {
   if (!personalSubscription) {
     res.redirect('/user/subscription/plans')
   } else {
-    await SplitTestHandler.promises.getAssignment(
-      req,
-      res,
-      'bootstrap-5-subscription'
-    )
-
     res.render('subscriptions/successful-subscription-react', {
       title: 'thank_you',
       personalSubscription,
       postCheckoutRedirect,
       user,
     })
+  }
+}
+
+async function pauseSubscription(req, res, next) {
+  const user = SessionManager.getSessionUser(req.session)
+  const pauseCycles = req.params.pauseCycles
+  if (!('pauseCycles' in req.params)) {
+    return HttpErrorHandler.badRequest(
+      req,
+      res,
+      `Pausing subscription requires a 'pauseCycles' argument with number of billing cycles to pause for`
+    )
+  }
+  if (pauseCycles < 0) {
+    return HttpErrorHandler.badRequest(
+      req,
+      res,
+      `'pauseCycles' should be a number of billing cycles to pause for, or 0 to cancel a pending pause`
+    )
+  }
+  logger.debug(
+    { userId: user._id },
+    `pausing subscription for ${pauseCycles} billing cycles`
+  )
+  try {
+    await SubscriptionHandler.promises.pauseSubscription(user, pauseCycles)
+
+    const { subscription } =
+      await LimitationsManager.promises.userHasSubscription(user)
+
+    AnalyticsManager.recordEventForUserInBackground(
+      user._id,
+      'subscription-pause-scheduled',
+      {
+        pause_length: pauseCycles,
+        plan_code: subscription?.planCode,
+        subscriptionId: subscription?.recurlySubscription_id,
+      }
+    )
+
+    return res.sendStatus(200)
+  } catch (err) {
+    if (err instanceof Error) {
+      OError.tag(err, 'something went wrong pausing subscription', {
+        user_id: user._id,
+      })
+    }
+    return next(err)
+  }
+}
+
+async function resumeSubscription(req, res, next) {
+  const user = SessionManager.getSessionUser(req.session)
+  logger.debug({ userId: user._id }, `resuming subscription`)
+  try {
+    await SubscriptionHandler.promises.resumeSubscription(user)
+    return res.sendStatus(200)
+  } catch (err) {
+    if (err instanceof Error) {
+      OError.tag(err, 'something went wrong resuming subscription', {
+        user_id: user._id,
+      })
+    }
+    return next(err)
   }
 }
 
@@ -453,11 +295,6 @@ function cancelSubscription(req, res, next) {
  * @returns {Promise<void>}
  */
 async function canceledSubscription(req, res, next) {
-  await SplitTestHandler.promises.getAssignment(
-    req,
-    res,
-    'bootstrap-5-subscription'
-  )
   return res.render('subscriptions/canceled-subscription-react', {
     title: 'subscription_canceled',
     user: SessionManager.getSessionUser(req.session),
@@ -621,30 +458,6 @@ async function previewSubscription(req, res, next) {
   res.render('subscriptions/preview-change', { changePreview })
 }
 
-function updateSubscription(req, res, next) {
-  const origin = req && req.query ? req.query.origin : null
-  const user = SessionManager.getSessionUser(req.session)
-  const planCode = req.body.plan_code
-  if (planCode == null) {
-    const err = new Error('plan_code is not defined')
-    logger.warn(
-      { userId: user._id, err, planCode, origin, body: req.body },
-      '[Subscription] error in updateSubscription form'
-    )
-    return next(err)
-  }
-  logger.debug({ planCode, userId: user._id }, 'updating subscription')
-  SubscriptionHandler.updateSubscription(user, planCode, null, function (err) {
-    if (err) {
-      OError.tag(err, 'something went wrong updating subscription', {
-        user_id: user._id,
-      })
-      return next(err)
-    }
-    res.redirect('/user/subscription')
-  })
-}
-
 function cancelPendingSubscriptionChange(req, res, next) {
   const user = SessionManager.getSessionUser(req.session)
   logger.debug({ userId: user._id }, 'canceling pending subscription change')
@@ -718,6 +531,8 @@ function recurlyCallback(req, res, next) {
       'new_subscription_notification',
       'updated_subscription_notification',
       'expired_subscription_notification',
+      'subscription_paused_notification',
+      'subscription_resumed_notification',
     ].includes(event)
   ) {
     const recurlySubscription = eventData.subscription
@@ -804,7 +619,7 @@ async function redirectToHostedPage(req, res) {
   res.redirect(url)
 }
 
-async function _getRecommendedCurrency(req, res) {
+async function getRecommendedCurrency(req, res) {
   const userId = SessionManager.getLoggedInUserId(req.session)
   let ip = req.ip
   if (
@@ -814,7 +629,7 @@ async function _getRecommendedCurrency(req, res) {
     ip = req.query.ip
   }
   const currencyLookup = await GeoIpLookup.promises.getCurrencyCode(ip)
-  const countryCode = currencyLookup.countryCode
+  let countryCode = currencyLookup.countryCode
   const recommendedCurrency = currencyLookup.currencyCode
 
   let currency = null
@@ -823,6 +638,13 @@ async function _getRecommendedCurrency(req, res) {
     currency = queryCurrency
   } else if (recommendedCurrency) {
     currency = recommendedCurrency
+  }
+
+  const queryCountryCode = req.query.countryCode?.toUpperCase()
+
+  // only enable countryCode testing flag on staging or dev environments
+  if (queryCountryCode && process.env.NODE_ENV !== 'production') {
+    countryCode = queryCountryCode
   }
 
   return {
@@ -875,13 +697,29 @@ async function getLatamCountryBannerDetails(req, res) {
   return latamCountryBannerDetails
 }
 
-async function getShouldLoadHotjar(req, res) {
-  const assignment = await SplitTestHandler.promises.getAssignment(
-    req,
-    res,
-    'hotjar-plans'
+/**
+ * There are two sets of group plans: legacy plans and consolidated plans,
+ * and their naming conventions differ.
+ * This helper method computes the name of legacy group plans to ensure
+ * consistency with the naming of consolidated group plans.
+ *
+ * @param {string} planName
+ * @param {string} planCode
+ * @return {string}
+ */
+
+function getPlanNameForDisplay(planName, planCode) {
+  const match = planCode.match(
+    /^group_(collaborator|professional)_\d+_(enterprise|educational)$/
   )
-  return assignment?.variant === 'enabled'
+
+  if (!match) return planName
+
+  const [, type, category] = match
+  const prefix = type === 'collaborator' ? 'Standard' : 'Professional'
+  const suffix = category === 'educational' ? ' Educational' : ''
+
+  return `Overleaf ${prefix} Group${suffix}`
 }
 
 /**
@@ -912,7 +750,10 @@ function makeChangePreview(
     nextInvoice: {
       date: subscription.periodEnd.toISOString(),
       plan: {
-        name: subscriptionChange.nextPlanName,
+        name: getPlanNameForDisplay(
+          subscriptionChange.nextPlanName,
+          subscriptionChange.nextPlanCode
+        ),
         amount: subscriptionChange.nextPlanPrice,
       },
       addOns: subscriptionChange.nextAddOns.map(addOn => ({
@@ -933,16 +774,14 @@ function makeChangePreview(
 }
 
 module.exports = {
-  plansPage: expressify(plansPage),
-  plansPageLightDesign: expressify(plansPageLightDesign),
   userSubscriptionPage: expressify(userSubscriptionPage),
-  interstitialPaymentPage: expressify(interstitialPaymentPage),
   successfulSubscription: expressify(successfulSubscription),
   cancelSubscription,
+  pauseSubscription,
+  resumeSubscription,
   canceledSubscription: expressify(canceledSubscription),
   cancelV1Subscription,
   previewSubscription: expressify(previewSubscription),
-  updateSubscription,
   cancelPendingSubscriptionChange,
   updateAccountEmailAddress,
   reactivateSubscription,
@@ -951,13 +790,11 @@ module.exports = {
   recurlyNotificationParser,
   refreshUserFeatures: expressify(refreshUserFeatures),
   redirectToHostedPage: expressify(redirectToHostedPage),
-  plansBanners: _plansBanners,
   previewAddonPurchase: expressify(previewAddonPurchase),
   purchaseAddon,
   removeAddon,
   makeChangePreview,
-  promises: {
-    getRecommendedCurrency: _getRecommendedCurrency,
-    getLatamCountryBannerDetails,
-  },
+  getRecommendedCurrency,
+  getLatamCountryBannerDetails,
+  getPlanNameForDisplay,
 }

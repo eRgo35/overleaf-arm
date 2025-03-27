@@ -1,13 +1,15 @@
 import { UserId } from '../../../../../types/user'
 import { PublicAccessLevel } from '../../../../../types/public-access-level'
+import { ProjectSnapshot } from '@/infrastructure/project-snapshot'
 
 export type ProjectContextMember = {
   _id: UserId
-  privileges: 'readOnly' | 'readAndWrite'
+  privileges: 'readOnly' | 'readAndWrite' | 'review'
   email: string
   first_name: string
   last_name: string
   pendingEditor?: boolean
+  pendingReviewer?: boolean
 }
 
 export type ProjectContextValue = {
@@ -46,6 +48,7 @@ export type ProjectContextValue = {
     color?: string
   }[]
   trackChangesState: boolean | Record<UserId | '__guests__', boolean>
+  projectSnapshot: ProjectSnapshot
 }
 
 export type ProjectContextUpdateValue = Partial<ProjectContextValue>

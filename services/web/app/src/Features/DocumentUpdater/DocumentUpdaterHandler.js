@@ -9,6 +9,23 @@ const { promisify } = require('util')
 const { promisifyMultiResult } = require('@overleaf/promise-utils')
 const ProjectGetter = require('../Project/ProjectGetter')
 const FileStoreHandler = require('../FileStore/FileStoreHandler')
+const Features = require('../../infrastructure/Features')
+
+function getProjectLastUpdatedAt(projectId, callback) {
+  _makeRequest(
+    {
+      path: `/project/${projectId}/last_updated_at`,
+      method: 'GET',
+      json: true,
+    },
+    projectId,
+    'project.redis.last_updated_at',
+    (err, body) => {
+      if (err || !body?.lastUpdatedAt) return callback(err, null)
+      callback(null, new Date(body.lastUpdatedAt))
+    }
+  )
+}
 
 /**
  * @param {string} projectId
@@ -77,6 +94,23 @@ function deleteDoc(projectId, docId, ignoreFlushErrors, callback) {
     projectId,
     'delete.mongo.doc',
     callback
+  )
+}
+
+function getComment(projectId, docId, commentId, callback) {
+  _makeRequest(
+    {
+      path: `/project/${projectId}/doc/${docId}/comment/${commentId}`,
+      json: true,
+    },
+    projectId,
+    'get-comment',
+    function (error, comment) {
+      if (error) {
+        return callback(error)
+      }
+      callback(null, comment)
+    }
   )
 }
 
@@ -258,17 +292,34 @@ function resyncProjectHistory(
     doc: doc.doc._id,
     path: doc.path,
   }))
+  const hasFilestore = Features.hasFeature('filestore')
+  if (!hasFilestore) {
+    // Files without a hash likely do not have a blob. Abort.
+    for (const { file } of files) {
+      if (!file.hash) {
+        return callback(
+          new OError('found file with missing hash', { projectId, file })
+        )
+      }
+    }
+  }
   files = files.map(file => ({
     file: file.file._id,
     path: file.path,
-    url: FileStoreHandler._buildUrl(projectId, file.file._id),
+    url: hasFilestore
+      ? FileStoreHandler._buildUrl(projectId, file.file._id)
+      : undefined,
     _hash: file.file.hash,
+    createdBlob: !hasFilestore,
     metadata: buildFileMetadataForHistory(file.file),
   }))
 
   const body = { docs, files, projectHistoryId }
   if (opts.historyRangesMigration) {
     body.historyRangesMigration = opts.historyRangesMigration
+  }
+  if (opts.resyncProjectStructureOnly) {
+    body.resyncProjectStructureOnly = opts.resyncProjectStructureOnly
   }
   _makeRequest(
     {
@@ -360,6 +411,17 @@ function updateProjectStructure(
         changes.newDocs,
         historyRangesSupport
       )
+      const hasFilestore = Features.hasFeature('filestore')
+      if (!hasFilestore) {
+        for (const newEntity of changes.newFiles || []) {
+          if (!newEntity.file.hash) {
+            // Files without a hash likely do not have a blob. Abort.
+            return callback(
+              new OError('found file with missing hash', { newEntity })
+            )
+          }
+        }
+      }
       const {
         deletes: fileDeletes,
         adds: fileAdds,
@@ -490,6 +552,7 @@ function _getUpdates(
       })
     }
   }
+  const hasFilestore = Features.hasFeature('filestore')
 
   for (const id in newEntitiesHash) {
     const newEntity = newEntitiesHash[id]
@@ -504,10 +567,10 @@ function _getUpdates(
         docLines: newEntity.docLines,
         ranges: newEntity.ranges,
         historyRangesSupport,
-        url: newEntity.url,
+        url: newEntity.file != null && hasFilestore ? newEntity.url : undefined,
         hash: newEntity.file != null ? newEntity.file.hash : undefined,
         metadata: buildFileMetadataForHistory(newEntity.file),
-        createdBlob: newEntity.createdBlob ?? false,
+        createdBlob: (newEntity.createdBlob || !hasFilestore) ?? false,
       })
     } else if (newEntity.path !== oldEntity.path) {
       // entity renamed
@@ -548,7 +611,9 @@ module.exports = {
   flushProjectToMongoAndDelete,
   flushDocToMongo,
   deleteDoc,
+  getComment,
   getDocument,
+  getProjectLastUpdatedAt,
   setDocument,
   appendToDocument,
   getProjectDocsIfMatch,
@@ -567,6 +632,7 @@ module.exports = {
     flushProjectToMongoAndDelete: promisify(flushProjectToMongoAndDelete),
     flushDocToMongo: promisify(flushDocToMongo),
     deleteDoc: promisify(deleteDoc),
+    getComment: promisify(getComment),
     getDocument: promisifyMultiResult(getDocument, [
       'lines',
       'version',
@@ -575,6 +641,7 @@ module.exports = {
     ]),
     setDocument: promisify(setDocument),
     getProjectDocsIfMatch: promisify(getProjectDocsIfMatch),
+    getProjectLastUpdatedAt: promisify(getProjectLastUpdatedAt),
     clearProjectState: promisify(clearProjectState),
     acceptChanges: promisify(acceptChanges),
     resolveThread: promisify(resolveThread),

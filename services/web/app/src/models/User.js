@@ -97,6 +97,8 @@ const UserSchema = new Schema(
       fontFamily: { type: String },
       lineHeight: { type: String },
       mathPreview: { type: Boolean, default: true },
+      referencesSearchMode: { type: String, default: 'advanced' }, // 'advanced' or 'simple'
+      enableNewEditor: { type: Boolean },
     },
     features: {
       collaborators: {
@@ -168,7 +170,6 @@ const UserSchema = new Schema(
           zotero: { type: Boolean },
           referencesSearch: { type: Boolean },
           symbolPalette: { type: Boolean },
-          compileAssistant: { type: Boolean },
         },
       },
     ],
@@ -194,6 +195,10 @@ const UserSchema = new Schema(
     writefull: {
       enabled: { type: Boolean, default: null },
       autoCreatedAccount: { type: Boolean, default: false },
+      isPremium: { type: Boolean, default: false },
+    },
+    aiErrorAssistant: {
+      enabled: { type: Boolean, default: true },
     },
     alphaProgram: { type: Boolean, default: false }, // experimental features
     betaProgram: { type: Boolean, default: false },

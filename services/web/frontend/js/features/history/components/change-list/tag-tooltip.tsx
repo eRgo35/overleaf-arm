@@ -16,7 +16,7 @@ import { deleteLabel } from '../../services/api'
 import { isPseudoLabel } from '../../utils/label'
 import { LoadedLabel } from '../../services/types/label'
 import { debugConsole } from '@/utils/debugging'
-import { formatTimeBasedOnYear } from '@/features/utils/format-date'
+import { FormatTimeBasedOnYear } from '@/shared/components/format-time-based-on-year'
 import { useEditorContext } from '@/shared/context/editor-context'
 import OLTag from '@/features/ui/components/ol/ol-tag'
 import OLButton from '@/features/ui/components/ol/ol-button'
@@ -122,11 +122,6 @@ const ChangeTag = forwardRef<HTMLElement, TagProps>(
                 disabled={isLoading}
                 isLoading={isLoading}
                 onClick={localDeleteHandler}
-                bs3Props={{
-                  loading: isLoading
-                    ? t('history_deleting_label')
-                    : t('history_delete_label'),
-                }}
               >
                 {t('history_delete_label')}
               </OLButton>
@@ -172,7 +167,9 @@ function TagTooltip({ label, currentUserId, showTooltip }: LabelBadgesProps) {
             {t('history_label_created_by')} {labelOwnerName}
           </div>
           <div className="history-version-label-tooltip-row">
-            <time>{formatTimeBasedOnYear(label.created_at)}</time>
+            <time>
+              <FormatTimeBasedOnYear date={label.created_at} />
+            </time>
           </div>
         </div>
       }

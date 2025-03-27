@@ -13,8 +13,9 @@ import {
   unconfirmedUserData,
   fakeUsersData,
   unconfirmedCommonsUserData,
+  untrustedUserData,
 } from '../fixtures/test-user-email-data'
-import localStorage from '../../../../../frontend/js/infrastructure/local-storage'
+import localStorage from '@/infrastructure/local-storage'
 
 const renderUserEmailsContext = () =>
   renderHook(() => useUserEmailsContext(), {
@@ -51,7 +52,7 @@ describe('UserEmailContext', function () {
       await fetchMock.flush(true)
       expect(fetchMock.calls()).to.have.lengthOf(1)
       expect(result.current.state.data.byId).to.deep.equal({
-        'bar@overleaf.com': confirmedUserData,
+        'bar@overleaf.com': { ...untrustedUserData, ...confirmedUserData },
         'baz@overleaf.com': unconfirmedUserData,
         'foo@overleaf.com': professionalUserData,
         'qux@overleaf.com': unconfirmedCommonsUserData,

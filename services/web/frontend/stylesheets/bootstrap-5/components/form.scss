@@ -24,11 +24,6 @@
   }
 
   &:disabled {
-    @mixin input-disabled-styles {
-      background-color: $input-disabled-bg;
-      border-color: $input-disabled-border-color;
-    }
-
     @include input-disabled-styles;
 
     &[type='checkbox']:indeterminate {
@@ -70,6 +65,15 @@
     &::placeholder {
       color: var(--content-disabled);
     }
+  }
+}
+
+// Fake disabled checkbox style
+.readonly-disabled-checkbox input.form-check-input {
+  @include input-disabled-styles;
+
+  &:hover:not(:disabled):checked {
+    @include input-disabled-styles;
   }
 }
 
@@ -157,6 +161,13 @@
   .form-control-end-icon {
     right: 0;
     padding-right: calc(var(--form-control-padding-x) + var(--bs-border-width));
+
+    .form-control-search-clear-btn {
+      @include reset-button;
+
+      display: flex;
+      justify-content: center;
+    }
   }
 
   --icon-width: 20px;
@@ -222,4 +233,22 @@
 %input-focus-style {
   border-color: $input-focus-border-color;
   box-shadow: $form-check-input-focus-box-shadow;
+}
+
+input[type='range'] {
+  display: block;
+  width: 100%;
+}
+
+// Feedback states
+.has-success {
+  @include form-control-validation($bg-accent-01);
+}
+
+.has-warning {
+  @include form-control-validation($bg-warning-03);
+}
+
+.has-error {
+  @include form-control-validation($bg-danger-01);
 }

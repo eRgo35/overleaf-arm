@@ -18,7 +18,7 @@ const subscriptionRateLimiter = new RateLimiter('subscription', {
   duration: 60,
 })
 
-const MAX_NUMBER_OF_USERS = 50
+const MAX_NUMBER_OF_USERS = 20
 
 const addSeatsValidateSchema = {
   body: Joi.object({
@@ -119,6 +119,30 @@ export default {
       SubscriptionGroupController.upgradeSubscription
     )
 
+    webRouter.get(
+      '/user/subscription/group/missing-billing-information',
+      AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionGroupController.flexibleLicensingSplitTest,
+      SubscriptionGroupController.missingBillingInformation
+    )
+
+    webRouter.get(
+      '/user/subscription/group/manually-collected-subscription',
+      AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionGroupController.flexibleLicensingSplitTest,
+      SubscriptionGroupController.manuallyCollectedSubscription
+    )
+
+    webRouter.get(
+      '/user/subscription/group/subtotal-limit-exceeded',
+      AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionGroupController.flexibleLicensingSplitTest,
+      SubscriptionGroupController.subtotalLimitExceeded
+    )
+
     // Team invites
     webRouter.get(
       '/subscription/invites/:token/',
@@ -144,7 +168,12 @@ export default {
     // recurly callback
     publicApiRouter.post(
       '/user/subscription/callback',
-      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      RateLimiterMiddleware.rateLimit(
+        new RateLimiter('recurly-callback', {
+          points: 200,
+          duration: 60,
+        })
+      ),
       AuthenticationController.requireBasicAuth({
         [Settings.apis.recurly.webhookUser]: Settings.apis.recurly.webhookPass,
       }),
@@ -158,12 +187,6 @@ export default {
       AuthenticationController.requireLogin(),
       RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
       SubscriptionController.previewSubscription
-    )
-    webRouter.post(
-      '/user/subscription/update',
-      AuthenticationController.requireLogin(),
-      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
-      SubscriptionController.updateSubscription
     )
     webRouter.get(
       '/user/subscription/addon/:addOnCode/add',
@@ -204,6 +227,23 @@ export default {
       AuthenticationController.requireLogin(),
       RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
       SubscriptionController.cancelSubscription
+    )
+    webRouter.post(
+      '/user/subscription/pause/:pauseCycles',
+      AuthenticationController.requireLogin(),
+      validate({
+        params: Joi.object({
+          pauseCycles: Joi.number().integer().max(12),
+        }),
+      }),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionController.pauseSubscription
+    )
+    webRouter.post(
+      '/user/subscription/resume',
+      AuthenticationController.requireLogin(),
+      RateLimiterMiddleware.rateLimit(subscriptionRateLimiter),
+      SubscriptionController.resumeSubscription
     )
     webRouter.post(
       '/user/subscription/reactivate',

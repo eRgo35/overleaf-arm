@@ -28,7 +28,6 @@ import {
   handleLogFiles,
   handleOutputFiles,
 } from '../../features/pdf-preview/util/output-files'
-import { useIdeContext } from './ide-context'
 import { useProjectContext } from './project-context'
 import { useEditorContext } from './editor-context'
 import { buildFileList } from '../../features/pdf-preview/util/file-list'
@@ -39,10 +38,12 @@ import { useFileTreePathContext } from '@/features/file-tree/contexts/file-tree-
 import { useUserSettingsContext } from '@/shared/context/user-settings-context'
 import { useFeatureFlag } from '@/shared/context/split-test-context'
 import { useEditorManagerContext } from '@/features/ide-react/context/editor-manager-context'
+import { CompileResponseData } from '../../../../types/compile'
 import {
   PdfScrollPosition,
   usePdfScrollPosition,
 } from '@/shared/hooks/use-pdf-scroll-position'
+import { PdfFileDataList } from '@/features/pdf-preview/util/types'
 
 type PdfFile = Record<string, any>
 
@@ -55,7 +56,7 @@ export type CompileContext = {
   deliveryLatencies: Record<string, any>
   draft: boolean
   error?: string
-  fileList?: Record<string, any>
+  fileList?: PdfFileDataList
   hasChanges: boolean
   hasShortCompileTimeout: boolean
   highlights?: Record<string, any>[]
@@ -112,10 +113,8 @@ export const LocalCompileContext = createContext<CompileContext | undefined>(
 )
 
 export const LocalCompileProvider: FC = ({ children }) => {
-  const ide = useIdeContext()
-
   const { hasPremiumCompile, isProjectOwner } = useEditorContext()
-  const { openDocId } = useEditorManagerContext()
+  const { openDocWithId, openDocs, currentDocument } = useEditorManagerContext()
 
   const { _id: projectId, rootDocId } = useProjectContext()
 
@@ -169,10 +168,10 @@ export const LocalCompileProvider: FC = ({ children }) => {
     useState(false)
 
   // the id of the CLSI server which ran the compile
-  const [clsiServerId, setClsiServerId] = useState()
+  const [clsiServerId, setClsiServerId] = useState<string>()
 
   // data received in response to a compile request
-  const [data, setData] = useState<Record<string, any>>()
+  const [data, setData] = useState<CompileResponseData>()
 
   // the rootDocId used in the most recent compile request, which may not be the
   // same as the project rootDocId. This is used to calculate correct paths when
@@ -211,7 +210,7 @@ export const LocalCompileProvider: FC = ({ children }) => {
   const [error, setError] = useState<string>()
 
   // the list of files that can be downloaded
-  const [fileList, setFileList] = useState<Record<string, any[]>>()
+  const [fileList, setFileList] = useState<PdfFileDataList>()
 
   // the raw contents of the log file
   const [rawLog, setRawLog] = useState<string>()
@@ -250,9 +249,6 @@ export const LocalCompileProvider: FC = ({ children }) => {
     true,
     true
   )
-
-  // the Document currently open in the editor
-  const [currentDoc] = useScopeValue('editor.sharejs_doc')
 
   // whether the editor linter found errors
   const [hasLintingError, setHasLintingError] = useScopeValue('hasLintingError')
@@ -299,13 +295,14 @@ export const LocalCompileProvider: FC = ({ children }) => {
       cleanupCompileResult,
       compilingRef,
       signal,
+      openDocs,
     })
   })
 
   // keep currentDoc in sync with the compiler
   useEffect(() => {
-    compiler.currentDoc = currentDoc
-  }, [compiler, currentDoc])
+    compiler.currentDoc = currentDocument
+  }, [compiler, currentDocument])
 
   // keep the project rootDocId in sync with the compiler
   useEffect(() => {
@@ -332,11 +329,11 @@ export const LocalCompileProvider: FC = ({ children }) => {
 
   // always compile the PDF once after opening the project, after the doc has loaded
   useEffect(() => {
-    if (!compiledOnce && currentDoc) {
+    if (!compiledOnce && currentDocument) {
       setCompiledOnce(true)
       compiler.compile({ isAutoCompileOnLoad: true })
     }
-  }, [compiledOnce, currentDoc, compiler])
+  }, [compiledOnce, currentDocument, compiler])
 
   useEffect(() => {
     setHasShortCompileTimeout(
@@ -387,7 +384,8 @@ export const LocalCompileProvider: FC = ({ children }) => {
         const outputFiles = new Map()
 
         for (const outputFile of data.outputFiles) {
-          outputFiles.set(outputFile.path, outputFile)
+          // Use a shadow-copy, we will update it in place and append to .url.
+          outputFiles.set(outputFile.path, { ...outputFile })
         }
 
         // set the PDF context
@@ -395,14 +393,7 @@ export const LocalCompileProvider: FC = ({ children }) => {
           setPdfFile(handleOutputFiles(outputFiles, projectId, data))
         }
 
-        setFileList(
-          buildFileList(
-            outputFiles,
-            data.clsiServerId,
-            data.compileGroup,
-            data.outputFilesArchive
-          )
-        )
+        setFileList(buildFileList(outputFiles, data))
 
         // handle log files
         // asynchronous (TODO: cancel on new compile?)
@@ -529,7 +520,6 @@ export const LocalCompileProvider: FC = ({ children }) => {
     }
   }, [
     data,
-    ide,
     alphaProgram,
     labsProgram,
     features,
@@ -619,14 +609,14 @@ export const LocalCompileProvider: FC = ({ children }) => {
       const result = findEntityByPath(entry.file)
 
       if (result && result.type === 'doc') {
-        openDocId(result.entity._id, {
+        openDocWithId(result.entity._id, {
           gotoLine: entry.line ?? undefined,
           gotoColumn: entry.column ?? undefined,
           keepCurrentView,
         })
       }
     },
-    [findEntityByPath, openDocId]
+    [findEntityByPath, openDocWithId]
   )
 
   // clear the cache then run a compile, triggered by a menu item

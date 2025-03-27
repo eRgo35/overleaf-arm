@@ -27,7 +27,9 @@ export function Alerts() {
 
   return createPortal(
     <>
-      {connectionState.forceDisconnected ? (
+      {connectionState.forceDisconnected &&
+      // hide "disconnected" banner when displaying out of sync modal
+      connectionState.error !== 'out-of-sync' ? (
         <OLNotification
           type="error"
           content={<strong>{t('disconnected')}</strong>}
@@ -59,7 +61,6 @@ export function Alerts() {
               id="synctex-more-info-button"
               variant="secondary"
               size="sm"
-              bs3Props={{ className: 'alert-link-as-btn pull-right' }}
             >
               {t('more_info')}
             </OLButton>

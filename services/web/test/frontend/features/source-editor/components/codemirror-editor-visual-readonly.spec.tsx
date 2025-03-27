@@ -1,4 +1,3 @@
-import '../../../helpers/bootstrap-3'
 import { mockScope } from '../helpers/mock-scope'
 import { EditorProviders } from '../../../helpers/editor-providers'
 import CodemirrorEditor from '../../../../../frontend/js/features/source-editor/components/codemirror-editor'
@@ -28,9 +27,12 @@ const PermissionsProvider: FC = ({ children }) => (
     value={{
       read: true,
       comment: true,
+      resolveOwnComments: false,
+      resolveAllComments: false,
       trackedWrite: false,
       write: false,
       admin: false,
+      labelVersion: false,
     }}
   >
     {children}

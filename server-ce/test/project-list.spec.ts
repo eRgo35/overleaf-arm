@@ -18,11 +18,11 @@ describe('Project List', () => {
   describe('user with no projects', () => {
     ensureUserExists({ email: WITHOUT_PROJECTS_USER })
 
-    it("'Import from Github' is not displayed in the welcome page", () => {
+    it("'Import from GitHub' is not displayed in the welcome page", () => {
       login(WITHOUT_PROJECTS_USER)
       cy.visit('/project')
       cy.findByText('Create a new project').click()
-      cy.findByText(/Import from Github/i).should('not.exist')
+      cy.findByText(/Import from GitHub/i).should('not.exist')
     })
   })
 
@@ -32,14 +32,14 @@ describe('Project List', () => {
 
     before(() => {
       login(REGULAR_USER)
+      createProject(projectName, { type: 'Example Project', open: false })
+    })
+    beforeEach(function () {
+      login(REGULAR_USER)
       cy.visit('/project')
-      createProject(projectName, { type: 'Example Project' })
     })
 
     it('Can download project sources', () => {
-      login(REGULAR_USER)
-      cy.visit('/project')
-
       findProjectRow(projectName).within(() =>
         cy.findByRole('button', { name: 'Download .zip file' }).click()
       )
@@ -51,9 +51,6 @@ describe('Project List', () => {
     })
 
     it('Can download project PDF', () => {
-      login(REGULAR_USER)
-      cy.visit('/project')
-
       findProjectRow(projectName).within(() =>
         cy.findByRole('button', { name: 'Download PDF' }).click()
       )
@@ -67,9 +64,6 @@ describe('Project List', () => {
 
     it('can assign and remove tags to projects', () => {
       const tagName = uuid().slice(0, 7) // long tag names are truncated in the UI, which affects selectors
-      login(REGULAR_USER)
-      cy.visit('/project')
-
       cy.log('select project')
       cy.get(`[aria-label="Select ${projectName}"]`).click()
 
@@ -90,9 +84,7 @@ describe('Project List', () => {
       cy.log('create a separate project to filter')
       const nonTaggedProjectName = `project-${uuid()}`
       login(REGULAR_USER)
-      cy.visit('/project')
-      createProject(nonTaggedProjectName)
-      cy.visit('/project')
+      createProject(nonTaggedProjectName, { open: false })
 
       cy.log('select project')
       cy.get(`[aria-label="Select ${projectName}"]`).click()

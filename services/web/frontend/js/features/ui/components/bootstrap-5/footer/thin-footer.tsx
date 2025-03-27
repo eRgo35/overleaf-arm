@@ -60,7 +60,7 @@ function ThinFooter({
             {showPoweredBy ? (
               <>
                 <li>
-                  {/* year of Server Pro release, static */}© 2024{' '}
+                  {/* year of Server Pro release, static */}© 2025{' '}
                   <a href="https://www.overleaf.com/for/enterprises">
                     Powered by Overleaf
                   </a>
@@ -69,11 +69,13 @@ function ThinFooter({
               </>
             ) : null}
             {showLanguagePicker ? (
-              <li>
-                <LanguagePicker showHeader />
-              </li>
+              <>
+                <li>
+                  <LanguagePicker showHeader />
+                </li>
+                {hasCustomLeftNav ? <Separator /> : null}
+              </>
             ) : null}
-            {hasCustomLeftNav ? <Separator /> : null}
             {leftItems?.map(item => <FooterItemLi key={item.text} {...item} />)}
           </ul>
           <ul className="site-footer-items col-lg-3 text-end">

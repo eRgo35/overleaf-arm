@@ -281,6 +281,7 @@ module.exports = {
         `http://${process.env.V1_HISTORY_HOST || '127.0.0.1'}:${
           process.env.V1_HISTORY_PORT || '3100'
         }/api`,
+      urlForGitBridge: process.env.V1_HISTORY_URL_FOR_GIT_BRIDGE,
       user: process.env.V1_HISTORY_USER || 'staging',
       pass:
         process.env.V1_HISTORY_PASS ||
@@ -659,6 +660,11 @@ module.exports = {
   gracefulShutdownDelayInMs:
     parseInt(process.env.GRACEFUL_SHUTDOWN_DELAY_SECONDS ?? '5', 10) * seconds,
 
+  maxReconnectGracefullyIntervalMs: parseInt(
+    process.env.MAX_RECONNECT_GRACEFULLY_INTERVAL_MS ?? '30000',
+    10
+  ),
+
   // Expose the hostname in the `X-Served-By` response header
   exposeHostname: process.env.EXPOSE_HOSTNAME === 'true',
 
@@ -778,6 +784,10 @@ module.exports = {
       .split(',')
       .map(x => x.trim())
       .filter(x => x !== ''),
+    trustedUsersRegex: process.env.CAPTCHA_TRUSTED_USERS_REGEX
+      ? // Enforce matching of the entire input.
+        new RegExp(`^${process.env.CAPTCHA_TRUSTED_USERS_REGEX}$`)
+      : null,
     disabled: {
       invite: true,
       login: true,
@@ -949,19 +959,17 @@ module.exports = {
     tprFileViewRefreshError: [],
     tprFileViewRefreshButton: [],
     tprFileViewNotOriginalImporter: [],
-    newFilePromotions: [],
     contactUsModal: [],
     editorToolbarButtons: [],
     sourceEditorExtensions: [],
     sourceEditorComponents: [],
     pdfLogEntryComponents: [],
     pdfLogEntriesComponents: [],
-    pdfPreviewPromotions: [],
     diagnosticActions: [],
     sourceEditorCompletionSources: [],
     sourceEditorSymbolPalette: [],
     sourceEditorToolbarComponents: [],
-    editorPromotions: [],
+    mainEditorLayoutModals: [],
     langFeedbackLinkingWidgets: [],
     labsExperiments: [],
     integrationLinkingWidgets: [],
@@ -982,6 +990,10 @@ module.exports = {
     autoCompleteExtensions: [],
     sectionTitleGenerators: [],
     toastGenerators: [],
+    editorSidebarComponents: [],
+    fileTreeToolbarComponents: [],
+    integrationPanelComponents: [],
+    referenceSearchSetting: [],
   },
 
   moduleImportSequence: [
@@ -1005,7 +1017,8 @@ module.exports = {
 
   unsupportedBrowsers: {
     ie: '<=11',
-    safari: '<=13',
+    safari: '<=14',
+    firefox: '<=78',
   },
 
   // ID of the IEEE brand in the rails app

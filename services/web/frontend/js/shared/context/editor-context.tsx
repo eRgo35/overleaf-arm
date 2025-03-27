@@ -19,6 +19,7 @@ import { useUserContext } from './user-context'
 import { saveProjectSettings } from '@/features/editor-left-menu/utils/api'
 import { PermissionsLevel } from '@/features/ide-react/types/permissions'
 import { useModalsContext } from '@/features/ide-react/context/modals-context'
+import { WritefullAPI } from './types/writefull-instance'
 
 export const EditorContext = createContext<
   | {
@@ -34,7 +35,6 @@ export const EditorContext = createContext<
         submitBtnHtml?: string
       }
       hasPremiumCompile?: boolean
-      loading?: boolean
       renameProject: (newName: string) => void
       setPermissionsLevel: (permissionsLevel: PermissionsLevel) => void
       showSymbolPalette?: boolean
@@ -55,12 +55,14 @@ export const EditorContext = createContext<
       setHasPremiumSuggestion: (value: boolean) => void
       setPremiumSuggestionResetDate: (date: Date) => void
       premiumSuggestionResetDate: Date
+      writefullInstance: WritefullAPI | null
+      setWritefullInstance: (instance: WritefullAPI) => void
     }
   | undefined
 >(undefined)
 
 export const EditorProvider: FC = ({ children }) => {
-  const ide = useIdeContext()
+  const { socket } = useIdeContext()
   const { id: userId, featureUsage } = useUserContext()
   const { role } = useDetachContext()
   const { showGenericMessageModal } = useModalsContext()
@@ -84,7 +86,6 @@ export const EditorProvider: FC = ({ children }) => {
     )
   }, [])
 
-  const [loading] = useScopeValue('state.loading')
   const [projectName, setProjectName] = useScopeValue('project.name')
   const [permissionsLevel, setPermissionsLevel] =
     useScopeValue('permissionsLevel')
@@ -115,7 +116,11 @@ export const EditorProvider: FC = ({ children }) => {
 
   const isPendingEditor = useMemo(
     () =>
-      members?.some(member => member._id === userId && member.pendingEditor),
+      members?.some(
+        member =>
+          member._id === userId &&
+          (member.pendingEditor || member.pendingReviewer)
+      ),
     [members, userId]
   )
 
@@ -127,12 +132,11 @@ export const EditorProvider: FC = ({ children }) => {
   )
 
   useEffect(() => {
-    if (ide?.socket) {
-      ide.socket.on('projectNameUpdated', setProjectName)
-      return () =>
-        ide.socket.removeListener('projectNameUpdated', setProjectName)
+    if (socket) {
+      socket.on('projectNameUpdated', setProjectName)
+      return () => socket.removeListener('projectNameUpdated', setProjectName)
     }
-  }, [ide?.socket, setProjectName])
+  }, [socket, setProjectName])
 
   const renameProject = useCallback(
     (newName: string) => {
@@ -185,11 +189,13 @@ export const EditorProvider: FC = ({ children }) => {
     )
   }, [])
 
+  const [writefullInstance, setWritefullInstance] =
+    useState<WritefullAPI | null>(null)
+
   const value = useMemo(
     () => ({
       cobranding,
       hasPremiumCompile: features?.compileGroup === 'priority',
-      loading,
       renameProject,
       permissionsLevel: outOfSync ? 'readOnly' : permissionsLevel,
       setPermissionsLevel,
@@ -210,13 +216,14 @@ export const EditorProvider: FC = ({ children }) => {
       setPremiumSuggestionResetDate,
       assistantUpgraded,
       setAssistantUpgraded,
+      writefullInstance,
+      setWritefullInstance,
     }),
     [
       cobranding,
       features?.compileGroup,
       owner,
       userId,
-      loading,
       renameProject,
       permissionsLevel,
       setPermissionsLevel,
@@ -236,6 +243,8 @@ export const EditorProvider: FC = ({ children }) => {
       setPremiumSuggestionResetDate,
       assistantUpgraded,
       setAssistantUpgraded,
+      writefullInstance,
+      setWritefullInstance,
     ]
   )
 

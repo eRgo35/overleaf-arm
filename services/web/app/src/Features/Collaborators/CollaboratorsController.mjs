@@ -13,10 +13,7 @@ import { expressify } from '@overleaf/promise-utils'
 import { hasAdminAccess } from '../Helpers/AdminAuthorizationHelper.js'
 import TokenAccessHandler from '../TokenAccess/TokenAccessHandler.js'
 import ProjectAuditLogHandler from '../Project/ProjectAuditLogHandler.js'
-import ProjectGetter from '../Project/ProjectGetter.js'
-import SplitTestHandler from '../SplitTests/SplitTestHandler.js'
 import LimitationsManager from '../Subscription/LimitationsManager.js'
-import PrivilegeLevels from '../Authorization/PrivilegeLevels.js'
 
 const ObjectId = mongodb.ObjectId
 
@@ -82,27 +79,20 @@ async function setCollaboratorInfo(req, res, next) {
     const userId = req.params.user_id
     const { privilegeLevel } = req.body
 
-    if (privilegeLevel !== PrivilegeLevels.READ_ONLY) {
-      const project = await ProjectGetter.promises.getProject(projectId, {
-        owner_ref: 1,
-      })
-      const linkSharingChanges =
-        await SplitTestHandler.promises.getAssignmentForUser(
-          project.owner_ref,
-          'link-sharing-warning'
-        )
-      const allowed =
-        await LimitationsManager.promises.canAddXEditCollaborators(projectId, 1)
-      if (linkSharingChanges?.variant === 'active') {
-        if (!allowed) {
-          return HttpErrorHandler.forbidden(
-            req,
-            res,
-            'edit collaborator limit reached'
-          )
-        }
-      }
+    const allowed =
+      await LimitationsManager.promises.canChangeCollaboratorPrivilegeLevel(
+        projectId,
+        userId,
+        privilegeLevel
+      )
+    if (!allowed) {
+      return HttpErrorHandler.forbidden(
+        req,
+        res,
+        'edit collaborator limit reached'
+      )
     }
+
     await CollaboratorsHandler.promises.setCollaboratorPrivilegeLevel(
       projectId,
       userId,
@@ -134,6 +124,7 @@ async function transferOwnership(req, res, next) {
       {
         allowTransferToNonCollaborators: hasAdminAccess(sessionUser),
         sessionUserId: new ObjectId(sessionUser._id),
+        ipAddress: req.ip,
       }
     )
     res.sendStatus(204)

@@ -1,8 +1,7 @@
 import EmailsSection from '../../js/features/settings/components/emails-section'
 import { UserEmailsProvider } from '../../js/features/settings/context/user-email-context'
 import { LeaversSurveyAlert } from '../../js/features/settings/components/leavers-survey-alert'
-import localStorage from '../../js/infrastructure/local-storage'
-import { bsVersionDecorator } from '../../../.storybook/utils/with-bootstrap-switcher'
+import localStorage from '@/infrastructure/local-storage'
 
 export const SurveyAlert = () => {
   localStorage.setItem(
@@ -19,7 +18,4 @@ export const SurveyAlert = () => {
 export default {
   title: 'Account Settings / Survey Alerts',
   component: EmailsSection,
-  argTypes: {
-    ...bsVersionDecorator.argTypes,
-  },
 }

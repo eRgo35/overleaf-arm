@@ -1,3 +1,4 @@
+const SplitTestHandler = require('../SplitTests/SplitTestHandler')
 const AnalyticsManager = require('../Analytics/AnalyticsManager')
 const SubscriptionEmailHandler = require('./SubscriptionEmailHandler')
 const { AI_ADD_ON_CODE } = require('./RecurlyEntities')
@@ -30,6 +31,13 @@ async function sendRecurlyAnalyticsEvent(event, eventData) {
     case 'reactivated_account_notification':
       await _sendSubscriptionReactivatedEvent(userId, eventData)
       break
+    case 'subscription_paused_notification':
+      await _sendSubscriptionPausedEvent(userId, eventData)
+      break
+    case 'subscription_resumed_notification':
+      // 'resumed' here means resumed from pause
+      await _sendSubscriptionResumedEvent(userId, eventData)
+      break
     case 'paid_charge_invoice_notification':
       if (
         eventData.invoice.state === 'paid' &&
@@ -47,6 +55,45 @@ async function sendRecurlyAnalyticsEvent(event, eventData) {
       }
       break
   }
+}
+
+async function _sendSubscriptionResumedEvent(userId, eventData) {
+  const { planCode, state, subscriptionId } = _getSubscriptionData(eventData)
+
+  AnalyticsManager.recordEventForUserInBackground(
+    userId,
+    'subscription-resumed',
+    {
+      plan_code: planCode,
+      subscriptionId,
+    }
+  )
+  AnalyticsManager.setUserPropertyForUserInBackground(
+    userId,
+    'subscription-state',
+    state
+  )
+}
+
+async function _sendSubscriptionPausedEvent(userId, eventData) {
+  const { planCode, state, subscriptionId } = _getSubscriptionData(eventData)
+
+  const pauseLength = eventData.subscription.remaining_pause_cycles
+
+  AnalyticsManager.recordEventForUserInBackground(
+    userId,
+    'subscription-paused',
+    {
+      pause_length: pauseLength,
+      plan_code: planCode,
+      subscriptionId,
+    }
+  )
+  AnalyticsManager.setUserPropertyForUserInBackground(
+    userId,
+    'subscription-state',
+    state
+  )
 }
 
 async function _sendSubscriptionStartedEvent(userId, eventData) {
@@ -81,6 +128,17 @@ async function _sendSubscriptionStartedEvent(userId, eventData) {
 
   if (isTrial) {
     await SubscriptionEmailHandler.sendTrialOnboardingEmail(userId, planCode)
+    const cioAssignment = await SplitTestHandler.promises.getAssignmentForUser(
+      userId,
+      'customer-io-trial-conversion'
+    )
+    if (cioAssignment.variant === 'enabled') {
+      AnalyticsManager.setUserPropertyForUserInBackground(
+        userId,
+        'customer-io-integration',
+        true
+      )
+    }
   }
 }
 

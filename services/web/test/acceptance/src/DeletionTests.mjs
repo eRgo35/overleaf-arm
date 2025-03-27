@@ -1,4 +1,4 @@
-import User from './helpers/User.js'
+import User from './helpers/User.mjs'
 import Subscription from './helpers/Subscription.mjs'
 import request from './helpers/request.js'
 import async from 'async'
@@ -6,8 +6,8 @@ import { expect } from 'chai'
 import settings from '@overleaf/settings'
 import { db, ObjectId } from '../../../app/src/infrastructure/mongodb.js'
 import Features from '../../../app/src/infrastructure/Features.js'
-import MockDocstoreApiClass from './mocks/MockDocstoreApi.js'
-import MockFilestoreApiClass from './mocks/MockFilestoreApi.js'
+import MockDocstoreApiClass from './mocks/MockDocstoreApi.mjs'
+import MockFilestoreApiClass from './mocks/MockFilestoreApi.mjs'
 import MockChatApiClass from './mocks/MockChatApi.mjs'
 import MockGitBridgeApiClass from './mocks/MockGitBridgeApi.mjs'
 import MockHistoryBackupDeletionApiClass from './mocks/MockHistoryBackupDeletionApi.mjs'
@@ -391,7 +391,7 @@ describe('Deleting a project', function () {
         )
       })
 
-      it('Should destroy the files', function (done) {
+      it('Should destroy the files if filestore is in use', function (done) {
         expect(MockFilestoreApi.files[this.projectId.toString()]).to.exist
 
         request.post(
@@ -406,9 +406,13 @@ describe('Deleting a project', function () {
           (error, res) => {
             expect(error).not.to.exist
             expect(res.statusCode).to.equal(200)
-
-            expect(MockFilestoreApi.files[this.projectId.toString()]).not.to
-              .exist
+            if (Features.hasFeature('filestore')) {
+              expect(MockFilestoreApi.files[this.projectId.toString()]).not.to
+                .exist
+            } else {
+              // don't touch files in filestore if it's not in use
+              expect(MockFilestoreApi.files[this.projectId.toString()]).to.exist
+            }
             done()
           }
         )

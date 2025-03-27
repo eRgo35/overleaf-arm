@@ -25,6 +25,7 @@ module.exports = {
     addUserIdToProject,
     transferProjects,
     setCollaboratorPrivilegeLevel,
+    convertTrackChangesToExplicitFormat,
   },
 }
 
@@ -52,6 +53,7 @@ async function removeUserFromProject(projectId, userId) {
             reviewer_refs: userId,
             readOnly_refs: userId,
             pendingEditor_refs: userId,
+            pendingReviewer_refs: userId,
             tokenAccessReadOnly_refs: userId,
             tokenAccessReadAndWrite_refs: userId,
             trashed: userId,
@@ -67,6 +69,7 @@ async function removeUserFromProject(projectId, userId) {
             readOnly_refs: userId,
             reviewer_refs: userId,
             pendingEditor_refs: userId,
+            pendingReviewer_refs: userId,
             tokenAccessReadOnly_refs: userId,
             tokenAccessReadAndWrite_refs: userId,
             archived: userId,
@@ -105,7 +108,7 @@ async function addUserIdToProject(
   addingUserId,
   userId,
   privilegeLevel,
-  { pendingEditor } = {}
+  { pendingEditor, pendingReviewer } = {}
 ) {
   const project = await ProjectGetter.promises.getProject(projectId, {
     owner_ref: 1,
@@ -132,9 +135,17 @@ async function addUserIdToProject(
     level = { readOnly_refs: userId }
     if (pendingEditor) {
       level.pendingEditor_refs = userId
+    } else if (pendingReviewer) {
+      level.pendingReviewer_refs = userId
     }
     logger.debug(
-      { privileges: 'readOnly', userId, projectId, pendingEditor },
+      {
+        privileges: 'readOnly',
+        userId,
+        projectId,
+        pendingEditor,
+        pendingReviewer,
+      },
       'adding user'
     )
   } else if (privilegeLevel === PrivilegeLevels.REVIEW) {
@@ -149,31 +160,11 @@ async function addUserIdToProject(
   }
 
   if (privilegeLevel === PrivilegeLevels.REVIEW) {
-    const trackChanges =
-      typeof project.track_changes === 'object' ? project.track_changes : {}
-
+    const trackChanges = await convertTrackChangesToExplicitFormat(
+      projectId,
+      project.track_changes
+    )
     trackChanges[userId] = true
-
-    if (project.track_changes === true) {
-      // track changes are enabled for all
-      // we need to convert it to explicit format
-      const members =
-        await CollaboratorsGetter.promises.getMemberIdsWithPrivilegeLevels(
-          project
-        )
-
-      for (const { id, privilegeLevel } of members) {
-        if (
-          [
-            PrivilegeLevels.OWNER,
-            PrivilegeLevels.READ_AND_WRITE,
-            PrivilegeLevels.REVIEW,
-          ].includes(privilegeLevel)
-        ) {
-          trackChanges[id] = true
-        }
-      }
-    }
 
     await Project.updateOne(
       { _id: projectId },
@@ -265,6 +256,19 @@ async function transferProjects(fromUserId, toUserId) {
     }
   ).exec()
 
+  await Project.updateMany(
+    { pendingReviewer_refs: fromUserId },
+    {
+      $addToSet: { pendingReviewer_refs: toUserId },
+    }
+  ).exec()
+  await Project.updateMany(
+    { pendingReviewer_refs: fromUserId },
+    {
+      $pull: { pendingReviewer_refs: fromUserId },
+    }
+  ).exec()
+
   // Flush in background, no need to block on this
   _flushProjects(projectIds).catch(err => {
     logger.err(
@@ -278,7 +282,7 @@ async function setCollaboratorPrivilegeLevel(
   projectId,
   userId,
   privilegeLevel,
-  { pendingEditor } = {}
+  { pendingEditor, pendingReviewer } = {}
 ) {
   // Make sure we're only updating the project if the user is already a
   // collaborator
@@ -298,6 +302,7 @@ async function setCollaboratorPrivilegeLevel(
           readOnly_refs: userId,
           pendingEditor_refs: userId,
           reviewer_refs: userId,
+          pendingReviewer_refs: userId,
         },
         $addToSet: { collaberator_refs: userId },
       }
@@ -309,8 +314,25 @@ async function setCollaboratorPrivilegeLevel(
           readOnly_refs: userId,
           pendingEditor_refs: userId,
           collaberator_refs: userId,
+          pendingReviewer_refs: userId,
         },
         $addToSet: { reviewer_refs: userId },
+      }
+
+      const project = await ProjectGetter.promises.getProject(projectId, {
+        track_changes: true,
+      })
+      const newTrackChangesState = await convertTrackChangesToExplicitFormat(
+        projectId,
+        project.track_changes
+      )
+      if (newTrackChangesState[userId] !== true) {
+        newTrackChangesState[userId] = true
+      }
+      if (typeof project.track_changes === 'object') {
+        update.$set = { [`track_changes.${userId}`]: true }
+      } else {
+        update.$set = { track_changes: newTrackChangesState }
       }
       break
     }
@@ -319,11 +341,19 @@ async function setCollaboratorPrivilegeLevel(
         $pull: { collaberator_refs: userId, reviewer_refs: userId },
         $addToSet: { readOnly_refs: userId },
       }
+
       if (pendingEditor) {
         update.$addToSet.pendingEditor_refs = userId
       } else {
         update.$pull.pendingEditor_refs = userId
       }
+
+      if (pendingReviewer) {
+        update.$addToSet.pendingReviewer_refs = userId
+      } else {
+        update.$pull.pendingReviewer_refs = userId
+      }
+
       break
     }
     default: {
@@ -333,6 +363,14 @@ async function setCollaboratorPrivilegeLevel(
   const mongoResponse = await Project.updateOne(query, update).exec()
   if (mongoResponse.matchedCount === 0) {
     throw new Errors.NotFoundError('project or collaborator not found')
+  }
+
+  if (update.$set?.track_changes) {
+    EditorRealTimeController.emitToRoom(
+      projectId,
+      'toggle-track-changes',
+      update.$set.track_changes
+    )
   }
 }
 
@@ -366,4 +404,38 @@ async function _flushProjects(projectIds) {
   for (const projectId of projectIds) {
     await TpdsProjectFlusher.promises.flushProjectToTpds(projectId)
   }
+}
+
+async function convertTrackChangesToExplicitFormat(
+  projectId,
+  trackChangesState
+) {
+  if (typeof trackChangesState === 'object') {
+    return { ...trackChangesState }
+  }
+
+  if (trackChangesState === true) {
+    // track changes are enabled for all
+    const members =
+      await CollaboratorsGetter.promises.getMemberIdsWithPrivilegeLevels(
+        projectId
+      )
+
+    const newTrackChangesState = {}
+    for (const { id, privilegeLevel } of members) {
+      if (
+        [
+          PrivilegeLevels.OWNER,
+          PrivilegeLevels.READ_AND_WRITE,
+          PrivilegeLevels.REVIEW,
+        ].includes(privilegeLevel)
+      ) {
+        newTrackChangesState[id] = true
+      }
+    }
+
+    return newTrackChangesState
+  }
+
+  return {}
 }

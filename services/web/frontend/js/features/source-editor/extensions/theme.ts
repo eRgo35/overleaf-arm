@@ -3,21 +3,22 @@ import { Annotation, Compartment, TransactionSpec } from '@codemirror/state'
 import { syntaxHighlighting } from '@codemirror/language'
 import { classHighlighter } from './class-highlighter'
 import classNames from 'classnames'
+import {
+  FontFamily,
+  LineHeight,
+  OverallTheme,
+  userStyles,
+} from '@/shared/utils/styles'
 
 const optionsThemeConf = new Compartment()
 const selectedThemeConf = new Compartment()
 export const themeOptionsChange = Annotation.define<boolean>()
-
-export type FontFamily = 'monaco' | 'lucida' | 'opendyslexicmono'
-export type LineHeight = 'compact' | 'normal' | 'wide'
-export type OverallTheme = '' | 'light-'
 
 type Options = {
   fontSize: number
   fontFamily: FontFamily
   lineHeight: LineHeight
   overallTheme: OverallTheme
-  bootstrapVersion: 3 | 5
 }
 
 export const theme = (options: Options) => [
@@ -53,38 +54,24 @@ const svgUrl = (content: string) =>
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">${content}</svg>`
   )}')`
 
-export const lineHeights: Record<LineHeight, number> = {
-  compact: 1.33,
-  normal: 1.6,
-  wide: 2,
-}
-
-const fontFamilies: Record<FontFamily, string[]> = {
-  monaco: ['Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'monospace'],
-  lucida: ['Lucida Console', 'Source Code Pro', 'monospace'],
-  opendyslexicmono: ['OpenDyslexic Mono', 'monospace'],
-}
-
 const createThemeFromOptions = ({
   fontSize = 12,
   fontFamily = 'monaco',
   lineHeight = 'normal',
   overallTheme = '',
-  bootstrapVersion = 3,
 }: Options) => {
-  /**
-   * Theme styles that depend on settings.
-   */
+  // Theme styles that depend on settings.
+  const styles = userStyles({ fontSize, fontFamily, lineHeight })
+
   return [
     EditorView.editorAttributes.of({
       class: classNames(
-        overallTheme === '' ? 'overall-theme-dark' : 'overall-theme-light',
-        'bootstrap-' + bootstrapVersion
+        overallTheme === '' ? 'overall-theme-dark' : 'overall-theme-light'
       ),
       style: Object.entries({
-        '--font-size': `${fontSize}px`,
-        '--source-font-family': fontFamilies[fontFamily]?.join(', '),
-        '--line-height': lineHeights[lineHeight],
+        '--font-size': styles.fontSize,
+        '--source-font-family': styles.fontFamily,
+        '--line-height': styles.lineHeight,
       })
         .map(([key, value]) => `${key}: ${value}`)
         .join(';'),
@@ -93,9 +80,9 @@ const createThemeFromOptions = ({
     // TODO: set these on document.body, or a new container element for the tooltips, without using a style mod
     EditorView.theme({
       '.cm-tooltip': {
-        '--font-size': `${fontSize}px`,
-        '--source-font-family': fontFamilies[fontFamily]?.join(', '),
-        '--line-height': lineHeights[lineHeight],
+        '--font-size': styles.fontSize,
+        '--source-font-family': styles.fontFamily,
+        '--line-height': styles.lineHeight,
       },
     }),
   ]
@@ -175,6 +162,9 @@ const baseTheme = EditorView.baseTheme({
   '.cm-diagnostic:last-of-type .ol-cm-diagnostic-actions': {
     marginBottom: '4px',
   },
+  '.cm-vim-panel input': {
+    color: 'inherit',
+  },
 })
 
 /**
@@ -186,6 +176,7 @@ const staticTheme = EditorView.theme({
   '&': {
     height: '100%',
     textRendering: 'optimizeSpeed',
+    fontVariantNumeric: 'slashed-zero',
   },
   // remove the outline from the focused editor
   '&.cm-editor.cm-focused:not(:focus-visible)': {

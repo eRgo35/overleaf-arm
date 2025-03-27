@@ -90,7 +90,7 @@ async function expireDeletedProjectsAfterDuration() {
       'deleterData.deletedAt': {
         $lt: new Date(moment().subtract(EXPIRE_PROJECTS_AFTER_DAYS, 'days')),
       },
-      project: { $ne: null },
+      project: { $type: 'object' },
     },
     { 'deleterData.deletedProjectId': 1 }
   )
@@ -244,6 +244,7 @@ async function deleteProject(projectId, options = {}) {
       deletedProjectOwnerId: project.owner_ref,
       deletedProjectCollaboratorIds: project.collaberator_refs,
       deletedProjectReadOnlyIds: project.readOnly_refs,
+      deletedProjectReviewerIds: project.reviewer_refs,
       deletedProjectReadWriteTokenAccessIds:
         project.tokenAccessReadAndWrite_refs,
       deletedProjectOverleafId: project.overleaf

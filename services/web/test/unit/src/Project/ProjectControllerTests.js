@@ -62,6 +62,11 @@ describe('ProjectController', function () {
         getUsersSubscription: sinon.stub().resolves(),
       },
     }
+    this.SubscriptionController = {
+      promises: {
+        getRecommendedCurrency: sinon.stub().resolves({ currency: 'USD' }),
+      },
+    }
     this.LimitationsManager = {
       hasPaidSubscription: sinon.stub(),
       promises: {
@@ -177,6 +182,7 @@ describe('ProjectController', function () {
       promises: {
         getAssignment: sinon.stub().resolves({ variant: 'default' }),
         getAssignmentForUser: sinon.stub().resolves({ variant: 'default' }),
+        hasUserBeenAssignedToVariant: sinon.stub().resolves(false),
       },
       getAssignment: sinon.stub().yields(null, { variant: 'default' }),
     }
@@ -231,6 +237,7 @@ describe('ProjectController', function () {
         '../User/UserController': this.UserController,
         './ProjectHelper': this.ProjectHelper,
         '../Subscription/SubscriptionLocator': this.SubscriptionLocator,
+        '../Subscription/SubscriptionController': this.SubscriptionController,
         '../Subscription/LimitationsManager': this.LimitationsManager,
         '../Tags/TagsHandler': this.TagsHandler,
         '../../models/User': { User: this.UserModel },
@@ -1031,105 +1038,125 @@ describe('ProjectController', function () {
       })
     })
 
-    describe('link sharing changes active', function () {
+    describe('when user is a read write token member (and not already a named editor)', function () {
       beforeEach(function () {
-        this.SplitTestHandler.promises.getAssignmentForUser.callsFake(
-          async (userId, test) => {
-            if (test === 'link-sharing-warning') {
-              return { variant: 'active' }
-            }
-          }
+        this.CollaboratorsGetter.promises.userIsTokenMember.resolves(true)
+        this.CollaboratorsGetter.promises.userIsReadWriteTokenMember.resolves(
+          true
+        )
+        this.CollaboratorsGetter.promises.isUserInvitedReadWriteMemberOfProject.resolves(
+          false
         )
       })
 
-      describe('when user is a read write token member (and not already a named editor)', function () {
-        beforeEach(function () {
-          this.CollaboratorsGetter.promises.userIsTokenMember.resolves(true)
-          this.CollaboratorsGetter.promises.userIsReadWriteTokenMember.resolves(
-            true
-          )
-          this.CollaboratorsGetter.promises.isUserInvitedReadWriteMemberOfProject.resolves(
-            false
-          )
-        })
-
-        it('should redirect to the sharing-updates page', function (done) {
-          this.res.redirect = url => {
-            expect(url).to.equal(`/project/${this.project_id}/sharing-updates`)
-            done()
-          }
-          this.ProjectController.loadEditor(this.req, this.res)
-        })
-      })
-
-      describe('when user is a read write token member but also a named editor', function () {
-        beforeEach(function () {
-          this.CollaboratorsGetter.promises.userIsTokenMember.resolves(true)
-          this.CollaboratorsGetter.promises.userIsReadWriteTokenMember.resolves(
-            true
-          )
-          this.CollaboratorsGetter.promises.isUserInvitedReadWriteMemberOfProject.resolves(
-            true
-          )
-        })
-
-        it('should not redirect to the sharing-updates page, and should load the editor', function (done) {
-          this.res.render = (pageName, opts) => {
-            done()
-          }
-          this.ProjectController.loadEditor(this.req, this.res)
-        })
+      it('should redirect to the sharing-updates page', function (done) {
+        this.res.redirect = url => {
+          expect(url).to.equal(`/project/${this.project_id}/sharing-updates`)
+          done()
+        }
+        this.ProjectController.loadEditor(this.req, this.res)
       })
     })
 
-    describe('link sharing enforcement', function () {
-      describe('when not active (default)', function () {
-        beforeEach(function () {
-          this.SplitTestHandler.promises.getAssignmentForUser.callsFake(
-            async (userId, test) => {
-              if (test === 'link-sharing-warning') {
-                return { variant: 'active' }
-              } else if (test === 'link-sharing-enforcement') {
-                return { variant: 'default' }
-              }
-            }
-          )
-        })
-
-        it('should not call the collaborator limit enforcement check', function (done) {
-          this.res.render = (pageName, opts) => {
-            this.Modules.promises.hooks.fire.should.not.have.been.calledWith(
-              'enforceCollaboratorLimit'
-            )
-            done()
-          }
-          this.ProjectController.loadEditor(this.req, this.res)
-        })
+    describe('when user is a read write token member but also a named editor', function () {
+      beforeEach(function () {
+        this.CollaboratorsGetter.promises.userIsTokenMember.resolves(true)
+        this.CollaboratorsGetter.promises.userIsReadWriteTokenMember.resolves(
+          true
+        )
+        this.CollaboratorsGetter.promises.isUserInvitedReadWriteMemberOfProject.resolves(
+          true
+        )
       })
 
-      describe('when active', function () {
-        beforeEach(function () {
-          this.SplitTestHandler.promises.getAssignmentForUser.callsFake(
-            async (userId, test) => {
-              if (test === 'link-sharing-warning') {
-                return { variant: 'active' }
-              } else if (test === 'link-sharing-enforcement') {
-                return { variant: 'active' }
-              }
-            }
-          )
-        })
+      it('should not redirect to the sharing-updates page, and should load the editor', function (done) {
+        this.res.render = (pageName, opts) => {
+          done()
+        }
+        this.ProjectController.loadEditor(this.req, this.res)
+      })
+    })
 
-        it('should call the collaborator limit enforcement check', function (done) {
-          this.res.render = (pageName, opts) => {
-            this.Modules.promises.hooks.fire.should.have.been.calledWith(
-              'enforceCollaboratorLimit',
-              this.project_id
-            )
-            done()
-          }
-          this.ProjectController.loadEditor(this.req, this.res)
-        })
+    it('should call the collaborator limit enforcement check', function (done) {
+      this.res.render = (pageName, opts) => {
+        this.Modules.promises.hooks.fire.should.have.been.calledWith(
+          'enforceCollaboratorLimit',
+          this.project_id
+        )
+        done()
+      }
+      this.ProjectController.loadEditor(this.req, this.res)
+    })
+
+    describe('chatEnabled flag', function () {
+      it('should be set to false when the feature is disabled', function (done) {
+        this.Features.hasFeature = sinon.stub().withArgs('chat').returns(false)
+
+        this.res.render = (pageName, opts) => {
+          expect(opts.chatEnabled).to.be.false
+          done()
+        }
+        this.ProjectController.loadEditor(this.req, this.res)
+      })
+
+      it('should be set to false when the feature is enabled but the capability is not available', function (done) {
+        this.Features.hasFeature = sinon.stub().withArgs('chat').returns(false)
+        this.req.capabilitySet = new Set()
+
+        this.res.render = (pageName, opts) => {
+          expect(opts.chatEnabled).to.be.false
+          done()
+        }
+        this.ProjectController.loadEditor(this.req, this.res)
+      })
+
+      it('should be set to true when the feature is enabled and the capability is available', function (done) {
+        this.Features.hasFeature = sinon.stub().withArgs('chat').returns(true)
+        this.req.capabilitySet = new Set(['chat'])
+
+        this.res.render = (pageName, opts) => {
+          expect(opts.chatEnabled).to.be.true
+          done()
+        }
+        this.ProjectController.loadEditor(this.req, this.res)
+      })
+    })
+
+    describe('when fetching the users featureSet', function () {
+      beforeEach(function () {
+        this.Modules.promises.hooks.fire = sinon.stub().resolves()
+        this.user.features = {}
+      })
+
+      it('should take into account features overrides from modules', function (done) {
+        // this case occurs when the user has bought the ai bundle on WF, which should include our error assistant
+        const bundleFeatures = { aiErrorAssistant: true }
+        this.user.features = { aiErrorAssistant: false }
+        this.Modules.promises.hooks.fire = sinon
+          .stub()
+          .resolves([bundleFeatures])
+        this.res.render = (pageName, opts) => {
+          expect(opts.user.features).to.deep.equal(bundleFeatures)
+          this.Modules.promises.hooks.fire.should.have.been.calledWith(
+            'getModuleProvidedFeatures',
+            this.user._id
+          )
+          done()
+        }
+        this.ProjectController.loadEditor(this.req, this.res)
+      })
+
+      it('should handle modules not returning any features', function (done) {
+        this.Modules.promises.hooks.fire = sinon.stub().resolves([])
+        this.res.render = (pageName, opts) => {
+          expect(opts.user.features).to.deep.equal({})
+          this.Modules.promises.hooks.fire.should.have.been.calledWith(
+            'getModuleProvidedFeatures',
+            this.user._id
+          )
+          done()
+        }
+        this.ProjectController.loadEditor(this.req, this.res)
       })
     })
   })

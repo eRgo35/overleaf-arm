@@ -13,9 +13,15 @@ $editor-toggler-bg-dark-color: color.adjust(
 @include theme('light') {
   --editor-toggler-bg-color: var(--content-disabled);
   --editor-resizer-bg-color: var(--bg-light-tertiary);
+
+  .ide-redesign-main {
+    --editor-resizer-bg-color: var(--bg-light-tertiary);
+  }
 }
 
 #ide-root {
+  display: flex;
+  flex-direction: column;
   height: 100vh; /* for backwards compatibility */
   height: 100dvh; /* needed for mobile devices */
 
@@ -43,6 +49,20 @@ $editor-toggler-bg-dark-color: color.adjust(
   }
 }
 
+.ide-redesign-main {
+  --editor-resizer-bg-color: var(--bg-dark-tertiary);
+
+  .ide-panel-group-resizing {
+    background-color: var(--white);
+
+    // Hide panel contents while resizing
+    .ide-redesign-editor-content,
+    .pdf {
+      display: none !important;
+    }
+  }
+}
+
 .global-alerts {
   height: 0;
   margin-top: var(--spacing-01);
@@ -60,6 +80,7 @@ $editor-toggler-bg-dark-color: color.adjust(
   background-color: var(--file-tree-bg);
   height: 100%;
   color: var(--content-secondary-dark);
+  position: relative;
 }
 
 .ide-react-body {
@@ -70,7 +91,8 @@ $editor-toggler-bg-dark-color: color.adjust(
 }
 
 .ide-react-main {
-  height: 100%;
+  flex: 1;
+  overflow-y: hidden;
   display: flex;
   flex-direction: column;
 

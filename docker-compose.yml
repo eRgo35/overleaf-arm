@@ -40,10 +40,6 @@ services:
             # Disables email confirmation requirement
             EMAIL_CONFIRMATION_DISABLED: 'true'
 
-            # temporary fix for LuaLaTex compiles
-            # see https://github.com/overleaf/overleaf/issues/695
-            TEXMFVAR: /var/lib/overleaf/tmp/texmf-var
-
             ## Set for SSL via nginx-proxy
             #VIRTUAL_HOST: 103.112.212.22
 
@@ -102,12 +98,12 @@ services:
 
     mongo:
         restart: always
-        image: mongo:5.0
+        image: mongo:6.0
         container_name: mongo
         command: '--replSet overleaf'
         volumes:
             - ~/mongo_data:/data/db
-            - ./mongodb-init-replica-set.js:/docker-entrypoint-initdb.d/mongodb-init-replica-set.js
+            - ./bin/shared/mongodb-init-replica-set.js:/docker-entrypoint-initdb.d/mongodb-init-replica-set.js
         environment:
           MONGO_INITDB_DATABASE: sharelatex
         extra_hosts:
@@ -115,7 +111,7 @@ services:
           # This override is not needed when running the setup after starting up mongo.
           - mongo:127.0.0.1
         healthcheck:
-            test: echo 'db.stats().ok' | mongo localhost:27017/test --quiet
+            test: echo 'db.stats().ok' | mongosh localhost:27017/test --quiet
             interval: 10s
             timeout: 10s
             retries: 5

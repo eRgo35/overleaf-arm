@@ -81,6 +81,7 @@ describe('<GroupSubscriptionMemberships />', function () {
         assign: sinon.stub(),
         replace: sinon.stub(),
         reload: reloadStub,
+        setHash: sinon.stub(),
       })
 
       render(
@@ -91,7 +92,9 @@ describe('<GroupSubscriptionMemberships />', function () {
         </SplitTestProvider>
       )
 
-      const leaveGroupButton = screen.getByText('Leave group')
+      const leaveGroupButton = screen.getByRole('button', {
+        name: 'Leave group',
+      })
       fireEvent.click(leaveGroupButton)
 
       this.confirmModal = screen.getByRole('dialog')
@@ -99,8 +102,12 @@ describe('<GroupSubscriptionMemberships />', function () {
         'Are you sure you want to leave this group?'
       )
 
-      this.cancelButton = within(this.confirmModal).getByText('Cancel')
-      this.leaveNowButton = within(this.confirmModal).getByText('Leave now')
+      this.cancelButton = within(this.confirmModal).getByRole('button', {
+        name: 'Cancel',
+      })
+      this.leaveNowButton = within(this.confirmModal).getByRole('button', {
+        name: 'Leave now',
+      })
     })
 
     afterEach(function () {

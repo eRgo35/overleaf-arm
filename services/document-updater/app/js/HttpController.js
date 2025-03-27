@@ -49,6 +49,29 @@ function getDoc(req, res, next) {
   )
 }
 
+function getComment(req, res, next) {
+  const docId = req.params.doc_id
+  const projectId = req.params.project_id
+  const commentId = req.params.comment_id
+
+  logger.debug({ projectId, docId, commentId }, 'getting comment via http')
+
+  DocumentManager.getCommentWithLock(
+    projectId,
+    docId,
+    commentId,
+    (error, comment) => {
+      if (error) {
+        return next(error)
+      }
+      if (comment == null) {
+        return next(new Errors.NotFoundError('comment not found'))
+      }
+      res.json(comment)
+    }
+  )
+}
+
 // return the doc from redis if present, but don't load it from mongo
 function peekDoc(req, res, next) {
   const docId = req.params.doc_id
@@ -104,6 +127,22 @@ function getProjectDocsAndFlushIfOld(req, res, next) {
       }
     }
   )
+}
+
+function getProjectLastUpdatedAt(req, res, next) {
+  const projectId = req.params.project_id
+  ProjectManager.getProjectDocsTimestamps(projectId, (err, timestamps) => {
+    if (err) return next(err)
+
+    // Filter out nulls. This can happen when
+    // - docs get flushed between the listing and getting the individual docs ts
+    // - a doc flush failed half way (doc keys removed, project tracking not updated)
+    timestamps = timestamps.filter(ts => !!ts)
+
+    timestamps = timestamps.map(ts => parseInt(ts, 10))
+    timestamps.sort((a, b) => (a > b ? 1 : -1))
+    res.json({ lastUpdatedAt: timestamps.pop() })
+  })
 }
 
 function clearProjectState(req, res, next) {
@@ -410,7 +449,13 @@ function updateProject(req, res, next) {
 
 function resyncProjectHistory(req, res, next) {
   const projectId = req.params.project_id
-  const { projectHistoryId, docs, files, historyRangesMigration } = req.body
+  const {
+    projectHistoryId,
+    docs,
+    files,
+    historyRangesMigration,
+    resyncProjectStructureOnly,
+  } = req.body
 
   logger.debug(
     { projectId, docs, files },
@@ -420,6 +465,9 @@ function resyncProjectHistory(req, res, next) {
   const opts = {}
   if (historyRangesMigration) {
     opts.historyRangesMigration = historyRangesMigration
+  }
+  if (resyncProjectStructureOnly) {
+    opts.resyncProjectStructureOnly = resyncProjectStructureOnly
   }
 
   HistoryManager.resyncProjectHistory(
@@ -489,6 +537,7 @@ module.exports = {
   getDoc,
   peekDoc,
   getProjectDocsAndFlushIfOld,
+  getProjectLastUpdatedAt,
   clearProjectState,
   appendToDoc,
   setDoc,
@@ -506,4 +555,5 @@ module.exports = {
   flushQueuedProjects,
   blockProject,
   unblockProject,
+  getComment,
 }

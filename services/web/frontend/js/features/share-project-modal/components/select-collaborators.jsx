@@ -5,12 +5,9 @@ import { matchSorter } from 'match-sorter'
 import { useCombobox } from 'downshift'
 import classnames from 'classnames'
 
-import Icon from '../../../shared/components/icon'
 import MaterialIcon from '@/shared/components/material-icon'
 import Tag from '@/features/ui/components/bootstrap-5/tag'
 import { DropdownItem } from '@/features/ui/components/bootstrap-5/dropdown-menu'
-import BootstrapVersionSwitcher from '@/features/ui/components/bootstrap-5/bootstrap-version-switcher'
-import { bsVersion } from '@/features/utils/bootstrap-5'
 import { Spinner } from 'react-bootstrap-5'
 
 // Unicode characters in these Unicode groups:
@@ -155,22 +152,19 @@ export default function SelectCollaborators({
   }, [reset, isOpen, filteredOptions.length])
 
   return (
-    <div className="tags-input">
+    <div className="tags-input tags-new">
       {/* eslint-disable-next-line jsx-a11y/label-has-for */}
       <label className="small" {...getLabelProps()}>
-        {t('share_with_your_collabs')}
-        &nbsp;
+        <strong>
+          {t('add_people')}
+          &nbsp;
+        </strong>
         {loading && (
-          <BootstrapVersionSwitcher
-            bs3={<Icon type="refresh" spin />}
-            bs5={
-              <Spinner
-                animation="border"
-                aria-hidden="true"
-                size="sm"
-                role="status"
-              />
-            }
+          <Spinner
+            animation="border"
+            aria-hidden="true"
+            size="sm"
+            role="status"
           />
         )}
       </label>
@@ -212,6 +206,7 @@ export default function SelectCollaborators({
                 onChange: e => {
                   setInputValue(e.target.value)
                 },
+                onClick: () => focusInput,
                 onKeyDown: event => {
                   switch (event.key) {
                     case 'Enter':
@@ -262,19 +257,12 @@ export default function SelectCollaborators({
           />
         </div>
 
-        <div
-          className={bsVersion({ bs3: classnames({ autocomplete: isOpen }) })}
-        >
+        <div>
           <ul
             {...getMenuProps()}
-            className={classnames(
-              bsVersion({
-                bs3: 'suggestion-list',
-                bs5: classnames('dropdown-menu select-dropdown-menu', {
-                  show: isOpen,
-                }),
-              })
-            )}
+            className={classnames('dropdown-menu select-dropdown-menu', {
+              show: isOpen,
+            })}
           >
             {isOpen &&
               filteredOptions.map((item, index) => (
@@ -307,33 +295,17 @@ SelectCollaborators.propTypes = {
 
 function Option({ selected, item, getItemProps, index }) {
   return (
-    <li
-      className={bsVersion({
-        bs3: classnames('suggestion-item', { selected }),
-      })}
-      {...getItemProps({ item, index })}
-    >
-      <BootstrapVersionSwitcher
-        bs3={
-          <>
-            <Icon type="user" fw />
-            &nbsp;
-            {item.display}
-          </>
-        }
-        bs5={
-          <DropdownItem
-            as="span"
-            role={undefined}
-            leadingIcon="person"
-            className={classnames({
-              active: selected,
-            })}
-          >
-            {item.display}
-          </DropdownItem>
-        }
-      />
+    <li {...getItemProps({ item, index })}>
+      <DropdownItem
+        as="span"
+        role={undefined}
+        leadingIcon="person"
+        className={classnames({
+          active: selected,
+        })}
+      >
+        {item.display}
+      </DropdownItem>
     </li>
   )
 }
@@ -354,8 +326,6 @@ function SelectedItem({
   getSelectedItemProps,
   index,
 }) {
-  const { t } = useTranslation()
-
   const handleClick = useCallback(
     event => {
       event.preventDefault()
@@ -367,41 +337,15 @@ function SelectedItem({
   )
 
   return (
-    <BootstrapVersionSwitcher
-      bs3={
-        <span
-          className="tag-item"
-          {...getSelectedItemProps({ selectedItem, index })}
-        >
-          <Icon type="user" fw />
-          <span>{selectedItem.display}</span>
-          <button
-            type="button"
-            className="remove-button btn-inline-link"
-            aria-label={t('remove')}
-            onClick={handleClick}
-          >
-            <Icon type="close" fw />
-          </button>
-        </span>
-      }
-      bs5={
-        <Tag
-          prepend={
-            <BootstrapVersionSwitcher
-              bs3={<Icon type="user" fw />}
-              bs5={<MaterialIcon type="person" />}
-            />
-          }
-          closeBtnProps={{
-            onClick: handleClick,
-          }}
-          {...getSelectedItemProps({ selectedItem, index })}
-        >
-          {selectedItem.display}
-        </Tag>
-      }
-    />
+    <Tag
+      prepend={<MaterialIcon type="person" />}
+      closeBtnProps={{
+        onClick: handleClick,
+      }}
+      {...getSelectedItemProps({ selectedItem, index })}
+    >
+      {selectedItem.display}
+    </Tag>
   )
 }
 

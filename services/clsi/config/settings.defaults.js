@@ -1,11 +1,10 @@
 const Path = require('node:path')
-const os = require('node:os')
 const http = require('node:http')
 const https = require('node:https')
 
 http.globalAgent.keepAlive = false
 https.globalAgent.keepAlive = false
-const isPreEmptible = os.hostname().includes('pre-emp')
+const isPreEmptible = process.env.PREEMPTIBLE === 'TRUE'
 
 module.exports = {
   compileSizeLimit: process.env.COMPILE_SIZE_LIMIT || '7mb',
@@ -37,6 +36,10 @@ module.exports = {
       report_load: process.env.LOAD_BALANCER_AGENT_REPORT_LOAD !== 'false',
       load_port: 3048,
       local_port: 3049,
+      allow_maintenance:
+        (
+          process.env.LOAD_BALANCER_AGENT_ALLOW_MAINTENANCE ?? ''
+        ).toLowerCase() !== 'false',
     },
   },
   apis: {

@@ -54,7 +54,13 @@ export type User = {
     autoCreatedAccount: boolean
     firstAutoLoad: boolean
   }
+  aiErrorAssistant?: {
+    enabled: boolean
+  }
   featureUsage?: FeatureUsage
+  planCode?: string
+  isMemberOfGroupSubscription?: boolean
+  hasInstitutionLicence?: boolean
 }
 
 export type LoggedOutUser = {

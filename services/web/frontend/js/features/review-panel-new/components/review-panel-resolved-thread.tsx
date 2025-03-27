@@ -10,6 +10,8 @@ import { Change, CommentOperation } from '../../../../../types/change'
 import classNames from 'classnames'
 import { debugConsole } from '@/utils/debugging'
 import { useModalsContext } from '@/features/ide-react/context/modals-context'
+import { usePermissionsContext } from '@/features/ide-react/context/permissions-context'
+import { useUserContext } from '@/shared/context/user-context'
 
 export const ReviewPanelResolvedThread: FC<{
   id: ThreadId
@@ -20,6 +22,13 @@ export const ReviewPanelResolvedThread: FC<{
   const { reopenThread, deleteThread } = useThreadsActionsContext()
   const [processing, setProcessing] = useState(false)
   const { showGenericMessageModal } = useModalsContext()
+  const permissions = usePermissionsContext()
+  const user = useUserContext()
+  const isCommentAuthor = user.id === comment.metadata?.user_id
+  const canDelete =
+    permissions.resolveAllComments ||
+    (permissions.resolveOwnComments && isCommentAuthor)
+  const canReopen = permissions.comment
 
   const handleReopenThread = useCallback(async () => {
     setProcessing(true)
@@ -72,25 +81,36 @@ export const ReviewPanelResolvedThread: FC<{
           />
         </div>
         <div className="review-panel-resolved-comment-buttons">
-          <OLTooltip
-            id="reopen-thread"
-            overlayProps={{ placement: 'bottom' }}
-            description={t('reopen')}
-          >
-            <button type="button" className="btn" onClick={handleReopenThread}>
-              <MaterialIcon type="refresh" accessibilityLabel={t('reopen')} />
-            </button>
-          </OLTooltip>
-
-          <OLTooltip
-            id="delete-thread"
-            overlayProps={{ placement: 'bottom' }}
-            description={t('delete')}
-          >
-            <button type="button" className="btn" onClick={handleDeleteThread}>
-              <MaterialIcon type="delete" accessibilityLabel={t('delete')} />
-            </button>
-          </OLTooltip>
+          {canReopen && (
+            <OLTooltip
+              id="reopen-thread"
+              overlayProps={{ placement: 'bottom' }}
+              description={t('reopen')}
+            >
+              <button
+                type="button"
+                className="btn"
+                onClick={handleReopenThread}
+              >
+                <MaterialIcon type="refresh" accessibilityLabel={t('reopen')} />
+              </button>
+            </OLTooltip>
+          )}
+          {canDelete && (
+            <OLTooltip
+              id="delete-thread"
+              overlayProps={{ placement: 'bottom' }}
+              description={t('delete')}
+            >
+              <button
+                type="button"
+                className="btn"
+                onClick={handleDeleteThread}
+              >
+                <MaterialIcon type="delete" accessibilityLabel={t('delete')} />
+              </button>
+            </OLTooltip>
+          )}
         </div>
       </div>
       <div className="review-panel-resolved-comment-quoted-text">

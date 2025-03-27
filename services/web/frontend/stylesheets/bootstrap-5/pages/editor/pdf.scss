@@ -6,6 +6,10 @@
 
 @include theme('light') {
   --pdf-toolbar-btn-hover-color: var(--neutral-10);
+
+  .ide-redesign-main {
+    --pdf-bg: var(--neutral-10);
+  }
 }
 
 .pdf .toolbar.toolbar-pdf {
@@ -154,7 +158,24 @@
   top: var(--toolbar-small-height);
 }
 
+.ide-redesign-main {
+  --pdf-bg: var(--bg-dark-secondary);
+
+  .pdf-viewer {
+    .pdfjs-viewer {
+      .page {
+        box-shadow:
+          0 5px 5px 0 #23282f0d,
+          0 3px 14px 0 #23282f08,
+          0 8px 10px 0 #23282f14;
+      }
+    }
+  }
+}
+
 .pdf-viewer {
+  isolation: isolate;
+
   iframe {
     width: 100%;
     height: 100%;
